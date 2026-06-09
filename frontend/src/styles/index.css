@@ -1,0 +1,163 @@
+:root {
+  font-family: "Georgia", "Iowan Old Style", serif;
+  color: #201d18;
+  background:
+    radial-gradient(circle at top left, rgba(194, 167, 116, 0.2), transparent 30%),
+    linear-gradient(180deg, #f8f4ea 0%, #efe4cf 100%);
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  padding: 28px;
+  background: rgba(255, 250, 241, 0.88);
+  border-right: 1px solid rgba(32, 29, 24, 0.12);
+  backdrop-filter: blur(16px);
+}
+
+.content {
+  padding: 32px;
+}
+
+.nav {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.nav-link {
+  padding: 12px 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: #3b3125;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.nav-link.active {
+  background: #ab8d57;
+  color: white;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: #7b6650;
+}
+
+.muted {
+  color: #6e6355;
+}
+
+.stack {
+  display: grid;
+  gap: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.row.between {
+  justify-content: space-between;
+}
+
+.row.gap {
+  gap: 12px;
+}
+
+.card {
+  background: rgba(255, 251, 245, 0.82);
+  border: 1px solid rgba(32, 29, 24, 0.08);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 12px 40px rgba(72, 50, 16, 0.08);
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 2rem;
+}
+
+.inset {
+  padding: 14px;
+}
+
+.upload-dropzone {
+  display: grid;
+  gap: 10px;
+  padding: 28px;
+  border: 2px dashed #ab8d57;
+  border-radius: 16px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.graph-canvas {
+  height: 68vh;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(32, 29, 24, 0.08);
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(32, 29, 24, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.button {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  background: #8e5b2a;
+  color: white;
+  cursor: pointer;
+}
+
+.error {
+  color: #a63024;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(32, 29, 24, 0.12);
+  }
+}
+
