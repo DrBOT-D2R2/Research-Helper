@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-
 @dataclass(slots=True)
 class Document:
     id: int
@@ -13,7 +12,6 @@ class Document:
     storage_path: str
     status: str
     created_at: datetime
-
 
 @dataclass(slots=True)
 class Chunk:
@@ -25,7 +23,6 @@ class Chunk:
     char_start: int
     char_end: int
 
-
 @dataclass(slots=True)
 class Concept:
     id: int
@@ -35,7 +32,6 @@ class Concept:
     frequency: int
     created_at: datetime
 
-
 @dataclass(slots=True)
 class ConceptRelationship:
     id: int
@@ -44,4 +40,3 @@ class ConceptRelationship:
     relationship_type: str
     weight: float
     evidence_chunk_id: int | None
-

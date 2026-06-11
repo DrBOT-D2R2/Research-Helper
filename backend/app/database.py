@@ -1,13 +1,32 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, UTC
 from pathlib import Path
 import sqlite3
+import os
 from typing import Any, Iterator
 
-from .config import settings
+@dataclass(slots=True)
+class Settings:
+    env: str = os.getenv("KNOWLEDGE_VAULT_ENV", "development")
+    host: str = os.getenv("KNOWLEDGE_VAULT_HOST", "0.0.0.0")
+    port: int = int(os.getenv("KNOWLEDGE_VAULT_PORT", "8000"))
+    data_dir: Path = Path(os.getenv("KNOWLEDGE_VAULT_DATA_DIR", "./data"))
+    database_url: Path = Path(
+        os.getenv("KNOWLEDGE_VAULT_DATABASE_URL", "./data/sqlite/knowledge_vault.db")
+    )
+    log_level: str = os.getenv("KNOWLEDGE_VAULT_LOG_LEVEL", "INFO")
+    embedding_model: str = os.getenv(
+        "KNOWLEDGE_VAULT_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+    )
+    spacy_model: str = os.getenv("KNOWLEDGE_VAULT_SPACY_MODEL", "en_core_web_sm")
+    max_upload_size_bytes: int = 10 * 1024 * 1024
 
+settings = Settings()
+settings.data_dir.mkdir(parents=True, exist_ok=True)
+settings.database_url.parent.mkdir(parents=True, exist_ok=True)
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -54,13 +73,11 @@ CREATE TABLE IF NOT EXISTS concept_relationships (
 );
 """
 
-
 def get_connection() -> sqlite3.Connection:
     connection = sqlite3.connect(settings.database_url)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON;")
     return connection
-
 
 @contextmanager
 def db_cursor() -> Iterator[sqlite3.Cursor]:
@@ -73,24 +90,15 @@ def db_cursor() -> Iterator[sqlite3.Cursor]:
         cursor.close()
         connection.close()
 
-
 def init_db() -> None:
     Path(settings.database_url).parent.mkdir(parents=True, exist_ok=True)
     with db_cursor() as cursor:
         cursor.executescript(SCHEMA_SQL)
 
-
 def utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
-
-def insert_document(
-    filename: str,
-    file_type: str,
-    checksum: str,
-    storage_path: str,
-    status: str,
-) -> int:
+def insert_document(filename: str, file_type: str, checksum: str, storage_path: str, status: str) -> int:
     with db_cursor() as cursor:
         cursor.execute(
             """
@@ -101,26 +109,16 @@ def insert_document(
         )
         return int(cursor.lastrowid)
 
-
 def update_document_status(document_id: int, status: str) -> None:
     with db_cursor() as cursor:
         cursor.execute("UPDATE documents SET status = ? WHERE id = ?", (status, document_id))
-
 
 def fetch_document(document_id: int) -> sqlite3.Row | None:
     with db_cursor() as cursor:
         cursor.execute("SELECT * FROM documents WHERE id = ?", (document_id,))
         return cursor.fetchone()
 
-
-def insert_chunk(
-    document_id: int,
-    chunk_index: int,
-    content: str,
-    token_estimate: int,
-    char_start: int,
-    char_end: int,
-) -> int:
+def insert_chunk(document_id: int, chunk_index: int, content: str, token_estimate: int, char_start: int, char_end: int) -> int:
     with db_cursor() as cursor:
         cursor.execute(
             """
@@ -130,7 +128,6 @@ def insert_chunk(
             (document_id, chunk_index, content, token_estimate, char_start, char_end),
         )
         return int(cursor.lastrowid)
-
 
 def upsert_concept(name: str, description: str | None = None, embedding: str | None = None) -> int:
     with db_cursor() as cursor:
@@ -152,14 +149,7 @@ def upsert_concept(name: str, description: str | None = None, embedding: str | N
         )
         return int(cursor.lastrowid)
 
-
-def insert_relationship(
-    source_concept_id: int,
-    target_concept_id: int,
-    relationship_type: str,
-    weight: float,
-    evidence_chunk_id: int | None,
-) -> None:
+def insert_relationship(source_concept_id: int, target_concept_id: int, relationship_type: str, weight: float, evidence_chunk_id: int | None) -> None:
     with db_cursor() as cursor:
         cursor.execute(
             """
@@ -171,15 +161,12 @@ def insert_relationship(
             (source_concept_id, target_concept_id, relationship_type, weight, evidence_chunk_id),
         )
 
-
 def fetch_all(sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
     with db_cursor() as cursor:
         cursor.execute(sql, params)
         return cursor.fetchall()
 
-
 def fetch_one(sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:
     with db_cursor() as cursor:
         cursor.execute(sql, params)
         return cursor.fetchone()
-
