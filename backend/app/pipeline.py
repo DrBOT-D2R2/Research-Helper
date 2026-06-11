@@ -105,7 +105,22 @@ def fallback_candidates(text: str) -> list[str]:
 GENERIC_ACADEMIC_WORDS = {
     "model", "method", "result", "paper", "study", "data", "image", "approach", "system",
     "analysis", "performance", "experiment", "process", "framework", "technique",
-    "evaluation", "application", "concept", "feature", "example", "table", "figure"
+    "evaluation", "application", "concept", "feature", "example", "table", "figure",
+    "point", "solution", "second", "direction", "length", "case", "value", "term",
+    "part", "problem", "question", "answer", "time", "number", "way", "object",
+    "step", "fact", "idea", "sense", "reason", "change", "area", "type", "form",
+    "level", "order", "group", "set", "end", "start", "point", "side", "line",
+    "work", "state", "mind", "life", "name", "thing", "hand", "eye", "word",
+    "place", "man", "woman", "child", "world", "school", "state", "family",
+    "student", "group", "country", "problem", "hand", "part", "place", "case",
+    "week", "company", "system", "program", "question", "work", "government",
+    "number", "night", "mr", "mrs", "ms", "dr", "st", "ave", "rd", "blvd",
+    "equation", "expression", "variable", "value", "constant", "function", "graph",
+    "difference", "total", "sum", "average", "ratio", "percentage", "rate",
+    "unit", "quantity", "measurement", "scale", "range", "limit", "period",
+    "particle", "wire", "velocity", "speed", "string", "wave", "medium",
+    "point", "solution", "example",
+    "direction", "length", "time", "second", "minute", "hour", "day", "week"
 }
 
 # Simple map for abbreviation merging (could be expanded or made dynamic)
@@ -123,14 +138,53 @@ CONCEPT_ALIAS_MAP = {
     "artificial intelligence": "ai",
     "machine learning": "ml",
     "deep learning": "dl",
+    "stationary wave": "standing wave",
+    "stationary waves": "standing wave",
+    "standing waves": "standing wave",
+    "transverse waves": "transverse wave",
+    "longitudinal waves": "longitudinal wave",
+    "wave velocity": "wave speed",
+    "wave velocities": "wave speed",
+    "phase difference": "phase",
+    "path difference": "phase",
+    "superposition principle": "superposition",
 }
 
 def normalize_concept(name: str) -> str:
-    # Remove punctuation like ( ) and leading/trailing whitespace
-    name = re.sub(r"[()\"']", "", name).strip().lower()
+    # 1. Canonical lowercase
+    name = name.lower().strip()
+    
+    # 2. Remove possessives specifically before stripping punctuation
+    name = re.sub(r"'s\b", "", name)
+    
+    # 3. Remove punctuation like ( ) and leading/trailing whitespace
+    name = re.sub(r"[\(\)\"']", "", name)
+    name = name.replace("\n", " ")
+    
+    # 4. Remove leading articles: a, an, the
+    name = re.sub(r"^(a|an|the)\s+", "", name)
+    
+    # 5. Simple plural stripping (optional but helps merging "waves" -> "wave")
+    # Only if it ends in 's' and is at least 4 chars to avoid 'as', 'is', etc.
+    if len(name) > 3 and name.endswith("s") and not name.endswith("ss"):
+        # Very crude singularization, but effective for many technical terms
+        name = name[:-1]
+    
+    # 6. Final strip
+    name = name.strip()
+    
+    # 7. Alias mapping
     return CONCEPT_ALIAS_MAP.get(name, name)
 
 def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
+    # 0. Basic sanity
+    if not name or len(name) < 2:
+        return False
+        
+    # Rule: Must start with a letter or number (avoid math symbols like =, +, etc.)
+    if not re.match(r"^[a-z0-9]", name):
+        return False
+
     # Rule 3: Filter generic words
     if name in GENERIC_ACADEMIC_WORDS:
         return False
@@ -157,11 +211,6 @@ def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
     # Reject if more than 50% of the phrase is junk
     if junk_words / len(words) > 0.5:
         return False
-
-    # Filter phrases that contain generic academic words as roots or starts
-    for generic in GENERIC_ACADEMIC_WORDS:
-        if name.startswith(generic + " ") or name.endswith(" " + generic) or name == generic:
-            return False
 
     # Rule 5: Discard concepts appearing only once unless they are named entities or multi-word
     if count < 2 and not is_ner and " " not in name:
@@ -297,18 +346,65 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
         for r in relationships_map.values()
     ]
 
-    # Calculate average degree
+    # --- Relationship Scoring & Capping ---
+    MAX_RELATIONSHIPS_PER_NODE = 5
+    scored_rels = []
+    for rel_key, r in relationships_map.items():
+        # Score = Frequency * (1 + similarity) + Dependency Bonus
+        score = r["weight"] * (1 + r["max_sim"])
+        if r["type"] == "depends_on":
+            score += 2.0
+        r["score"] = score
+        scored_rels.append(r)
+
+    # Cap relationships per node to keep only the strongest connections
+    from collections import defaultdict
+    node_connections = defaultdict(list)
+    for r in scored_rels:
+        node_connections[r["source"]].append(r)
+        node_connections[r["target"]].append(r)
+
+    final_rel_keys = set()
+    for node, rels in node_connections.items():
+        # Sort by score descending
+        rels.sort(key=lambda x: x["score"], reverse=True)
+        for r in rels[:MAX_RELATIONSHIPS_PER_NODE]:
+            final_rel_keys.add(tuple(sorted((r["source"], r["target"]))))
+
+    final_relationships = [
+        ExtractedRelationship(
+            source=relationships_map[k]["source"],
+            target=relationships_map[k]["target"],
+            relationship_type=relationships_map[k]["type"],
+            weight=relationships_map[k]["score"] # Use score as weight for visualization
+        )
+        for k in final_rel_keys
+    ]
+
+    # Sort final relationships by weight (score) for reporting
+    final_relationships.sort(key=lambda x: x.weight, reverse=True)
+
+    # Calculate metrics
     node_count = len(concepts)
-    edge_count = len(relationships)
+    edge_count = len(final_relationships)
+    possible_edges = (node_count * (node_count - 1)) / 2 if node_count > 1 else 1
     avg_degree = (2 * edge_count / node_count) if node_count > 0 else 0
+    density = edge_count / possible_edges if node_count > 1 else 0
 
     print(f"--- Final Extraction Metrics ---")
     print(f"Concept count: {node_count}")
     print(f"Relationship count: {edge_count}")
     print(f"Average degree: {avg_degree:.2f}")
+    print(f"Graph density: {density:.4f}")
     print(f"--------------------------------")
+    
+    if final_relationships:
+        print(f"--- Top 20 Strongest Relationships ---")
+        for r in final_relationships[:20]:
+            print(f"{r.source} <-({r.relationship_type})-> {r.target} [Score: {r.weight:.2f}]")
+        print(f"---------------------------------------")
 
-    return concepts, relationships
+    return concepts, final_relationships
 
 def serialize_embedding(vector: list[float]) -> str:
     return json.dumps(vector)
