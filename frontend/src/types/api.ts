@@ -36,6 +36,15 @@ export type LearningPathResponse = {
   steps: LearningPathStep[];
 };
 
+export type ResetResponse = {
+  success: boolean;
+  deleted_documents: number;
+  deleted_chunks: number;
+  deleted_concepts: number;
+  deleted_relationships: number;
+  error?: string;
+};
+
 export type SearchResult = {
   concept_id: number;
   name: string;

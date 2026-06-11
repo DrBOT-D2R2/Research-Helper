@@ -77,3 +77,11 @@ class LearningPathStep(BaseModel):
 class LearningPathResponse(BaseModel):
     target_concept_id: int
     steps: list[LearningPathStep]
+
+class ResetResponse(BaseModel):
+    success: bool
+    deleted_documents: int
+    deleted_chunks: int
+    deleted_concepts: int
+    deleted_relationships: int
+    error: str | None = None

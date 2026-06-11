@@ -161,8 +161,8 @@ def insert_relationship(source_concept_id: int, target_concept_id: int, relation
             (source_concept_id, target_concept_id, relationship_type, weight, evidence_chunk_id),
         )
 
-def reset_knowledge_base() -> None:
-    # 1. Print counts before deletion
+def reset_knowledge_base() -> dict[str, int]:
+    # 1. Capture counts before deletion
     with db_cursor() as cursor:
         cursor.execute("SELECT count(*) as count FROM documents")
         doc_count = cursor.fetchone()["count"]
@@ -173,19 +173,19 @@ def reset_knowledge_base() -> None:
         cursor.execute("SELECT count(*) as count FROM concept_relationships")
         rel_count = cursor.fetchone()["count"]
 
-    print("--- Before Reset ---")
-    print(f"Documents: {doc_count}")
-    print(f"Chunks: {chunk_count}")
-    print(f"Concepts: {concept_count}")
-    print(f"Relationships: {rel_count}")
+    stats = {
+        "deleted_documents": doc_count,
+        "deleted_chunks": chunk_count,
+        "deleted_concepts": concept_count,
+        "deleted_relationships": rel_count,
+    }
 
     # 2. Delete all existing data
     with db_cursor() as cursor:
-        # Tables are linked by foreign keys with ON DELETE CASCADE
         cursor.execute("DELETE FROM documents")
         cursor.execute("DELETE FROM concepts")
     
-    # 2.5 Vacuum to clear any remaining storage (must be outside transaction)
+    # 2.5 Vacuum
     conn = get_connection()
     try:
         conn.execute("VACUUM")
@@ -202,17 +202,7 @@ def reset_knowledge_base() -> None:
             elif item.is_dir():
                 shutil.rmtree(item)
     
-    # 4. Print counts after deletion
-    with db_cursor() as cursor:
-        cursor.execute("SELECT count(*) as count FROM documents")
-        doc_count = cursor.fetchone()["count"]
-        cursor.execute("SELECT count(*) as count FROM concepts")
-        concept_count = cursor.fetchone()["count"]
-
-    print("--- After Reset ---")
-    print(f"Documents: {doc_count}")
-    print(f"Concepts: {concept_count}")
-    print("Knowledge base has been fully reset.")
+    return stats
 
 def fetch_all(sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
     with db_cursor() as cursor:

@@ -38,6 +38,7 @@ from .schemas import (
     GraphResponse,
     LearningPathResponse,
     LearningPathStep,
+    ResetResponse,
     SearchResult,
     UploadResult,
 )
@@ -77,6 +78,24 @@ def create_app() -> FastAPI:
             "environment": settings.env,
             "database": str(settings.database_url),
         }
+
+    @app.post("/api/admin/reset", response_model=ResetResponse, tags=["admin"])
+    async def admin_reset() -> ResetResponse:
+        try:
+            from .database import reset_knowledge_base
+            stats = reset_knowledge_base()
+            logging.info(f"Knowledge base reset successful: {stats}")
+            return ResetResponse(success=True, **stats)
+        except Exception as e:
+            logging.error(f"Knowledge base reset failed: {e}")
+            return ResetResponse(
+                success=False,
+                deleted_documents=0,
+                deleted_chunks=0,
+                deleted_concepts=0,
+                deleted_relationships=0,
+                error=str(e)
+            )
 
     @app.post("/api/upload", response_model=UploadResult, tags=["upload"])
     async def upload_document(file: UploadFile = File(...)) -> UploadResult:
