@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
@@ -49,6 +50,11 @@ def configure_logging() -> None:
 
 def create_app() -> FastAPI:
     configure_logging()
+    
+    if os.getenv("KNOWLEDGE_VAULT_RESET") == "true":
+        from .database import reset_knowledge_base
+        reset_knowledge_base()
+
     init_db()
 
     app = FastAPI(

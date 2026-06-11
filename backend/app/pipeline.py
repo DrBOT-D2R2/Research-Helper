@@ -102,50 +102,211 @@ def fallback_candidates(text: str) -> list[str]:
         if candidate.lower() not in {"the", "and", "for", "with", "that", "this"}
     ]
 
-def extract_concepts(text: str) -> tuple[list[ExtractedConcept], list[ExtractedRelationship]]:
+GENERIC_ACADEMIC_WORDS = {
+    "model", "method", "result", "paper", "study", "data", "image", "approach", "system",
+    "analysis", "performance", "experiment", "process", "framework", "technique",
+    "evaluation", "application", "concept", "feature", "example", "table", "figure"
+}
+
+# Simple map for abbreviation merging (could be expanded or made dynamic)
+CONCEPT_ALIAS_MAP = {
+    "convolutional neural network": "cnn",
+    "convolutional neural networks": "cnn",
+    "magnetic resonance imaging": "mri",
+    "recurrent neural network": "rnn",
+    "recurrent neural networks": "rnn",
+    "generative adversarial network": "gan",
+    "generative adversarial networks": "gan",
+    "large language model": "llm",
+    "large language models": "llm",
+    "natural language processing": "nlp",
+    "artificial intelligence": "ai",
+    "machine learning": "ml",
+    "deep learning": "dl",
+}
+
+def normalize_concept(name: str) -> str:
+    # Remove punctuation like ( ) and leading/trailing whitespace
+    name = re.sub(r"[()\"']", "", name).strip().lower()
+    return CONCEPT_ALIAS_MAP.get(name, name)
+
+def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
+    # Rule 3: Filter generic words
+    if name in GENERIC_ACADEMIC_WORDS:
+        return False
+        
+    # NEW: Numeric / Junk filtering
+    # Reject purely numeric or punctuation
+    if re.match(r"^[0-9. ,;:-]+$", name):
+        return False
+    
+    # Split into words to check composition
+    words = name.split()
+    if not words: return False
+    
+    junk_words = 0
+    for w in words:
+        # Numeric fragments (10, 2a, 3.14)
+        if re.match(r"^[0-9.]+[a-z]?$|^[a-z][0-9.]+$", w):
+            junk_words += 1
+        # Single chars (x, y, z) that aren't 'a' or 'i' or in alias map
+        elif len(w) == 1 and w not in {"a", "i"}:
+            if w not in CONCEPT_ALIAS_MAP.values():
+                junk_words += 1
+                
+    # Reject if more than 50% of the phrase is junk
+    if junk_words / len(words) > 0.5:
+        return False
+
+    # Filter phrases that contain generic academic words as roots or starts
+    for generic in GENERIC_ACADEMIC_WORDS:
+        if name.startswith(generic + " ") or name.endswith(" " + generic) or name == generic:
+            return False
+
+    # Rule 5: Discard concepts appearing only once unless they are named entities or multi-word
+    if count < 2 and not is_ner and " " not in name:
+        return False
+    # Rule 2: Prefer multi-word concepts (len > 3 for single words to avoid junk)
+    if " " not in name and len(name) <= 3 and not is_ner:
+        # Keep short single words only if they are common abbreviations (like CNN, MRI)
+        if name not in CONCEPT_ALIAS_MAP.values():
+            return False
+    # Filter out junk
+    if len(name) < 2:
+        return False
+    return True
+
+def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> tuple[list[ExtractedConcept], list[ExtractedRelationship]]:
     nlp = get_nlp()
     doc = nlp(text)
 
+    # Rule 1: Extract noun phrases rather than individual nouns
+    candidate_counts = Counter()
+    ner_names = set()
+    
+    # We need to map the normalized name back to some "original" variants for text searching later
+    normalized_to_variants = {}
+
+    def add_candidate(original: str, is_ner: bool = False):
+        norm = normalize_concept(original)
+        if len(norm) < 2: return
+        candidate_counts[norm] += 1
+        if is_ner: ner_names.add(norm)
+        if norm not in normalized_to_variants:
+            normalized_to_variants[norm] = set()
+        normalized_to_variants[norm].add(original.strip().lower())
+
+    # Track entities
+    for ent in doc.ents:
+        add_candidate(ent.text, is_ner=True)
+
+    # Track noun chunks (Rule 1)
     if doc.has_annotation("DEP"):
-        candidates = [
-            chunk.text.strip().lower()
-            for chunk in doc.noun_chunks
-            if len(chunk.text.strip()) > 2 and not chunk.root.is_stop
-        ]
-    else:
-        candidates = fallback_candidates(text)
+        for chunk in doc.noun_chunks:
+            if not chunk.root.is_stop:
+                add_candidate(chunk.text)
 
-    candidates.extend(ent.text.strip().lower() for ent in doc.ents if len(ent.text.strip()) > 2)
+    # Report: rejected examples for inspection
+    rejected = []
+    filtered_candidates = {}
+    for name, count in candidate_counts.items():
+        if is_valid_concept(name, count, name in ner_names):
+            filtered_candidates[name] = count
+        else:
+            rejected.append(name)
+    
+    print(f"--- Rejected Concept Examples ---")
+    print(rejected[:15]) # Show first 15 rejected items
+    print(f"---------------------------------")
 
-    frequency = Counter(candidate for candidate in candidates if candidate.isascii())
+    # Rule 6: Limit graph generation to top N concepts
+    top_candidates = sorted(filtered_candidates.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    top_names = {name for name, count in top_candidates}
+
     concepts = [
-        ExtractedConcept(name=name, description=f"Observed {count} time(s) in source text.")
-        for name, count in frequency.items()
+        ExtractedConcept(name=name, description=f"Observed {count} time(s).")
+        for name, count in top_candidates
     ]
 
-    relationships: list[ExtractedRelationship] = []
+    # Pre-calculate embeddings for top concepts for semantic similarity filtering
+    model = get_model()
+    concept_list = [c.name for c in concepts]
+    if concept_list:
+        embeddings = model.encode(concept_list)
+        concept_to_emb = {name: emb for name, emb in zip(concept_list, embeddings, strict=True)}
+    else:
+        concept_to_emb = {}
+
+    relationships_map = {}
+    dependency_keywords = {"before", "follows", "requires", "prerequisite", "depends", "using", "via"}
+
     for sentence in doc.sents:
-        if doc.has_annotation("POS"):
-            sentence_concepts = sorted(
-                {
-                    token.text.strip().lower()
-                    for token in sentence
-                    if token.pos_ in {"NOUN", "PROPN"} and len(token.text.strip()) > 2
-                }
-            )
-        else:
-            sentence_concepts = sorted(set(fallback_candidates(sentence.text)))
-        for index, source in enumerate(sentence_concepts):
-            for target in sentence_concepts[index + 1 :]:
-                relationship_type = "depends_on" if "before" in sentence.text.lower() else "related_to"
-                relationships.append(
-                    ExtractedRelationship(
-                        source=source,
-                        target=target,
-                        relationship_type=relationship_type,
-                        weight=1.0,
-                    )
-                )
+        sentence_text = sentence.text.lower()
+        
+        # Which top concepts are in this sentence?
+        present = []
+        for name in top_names:
+            # Check normalized name itself
+            if name in sentence_text:
+                present.append(name)
+                continue
+            # Check any of the original variants that were normalized to this name
+            variants = normalized_to_variants.get(name, [])
+            if any(v in sentence_text for v in variants):
+                present.append(name)
+        
+        # Sort to ensure consistent source/target order
+        present = sorted(list(set(present)))
+        
+        # Strict relationship creation:
+        # 1. Same sentence (looping through present)
+        for i, source in enumerate(present):
+            for target in present[i+1:]:
+                # 2. Semantic Similarity check
+                sim = cosine_similarity(concept_to_emb[source].tolist(), concept_to_emb[target].tolist())
+                
+                # 3. Dependency detection (keyword heuristic)
+                has_dep = any(kw in sentence_text for kw in dependency_keywords)
+                
+                # Only create if sufficiently similar OR explicitly linked by dependency keywords
+                if sim > sim_threshold or has_dep:
+                    rel_key = tuple(sorted((source, target)))
+                    relationship_type = "depends_on" if has_dep else "related_to"
+                    
+                    if rel_key not in relationships_map:
+                        relationships_map[rel_key] = {
+                            "source": source,
+                            "target": target,
+                            "type": relationship_type,
+                            "weight": 0.0,
+                            "max_sim": sim
+                        }
+                    # Aggregate weights
+                    relationships_map[rel_key]["weight"] += 1.0
+                    # Preserve highest similarity
+                    if sim > relationships_map[rel_key]["max_sim"]:
+                        relationships_map[rel_key]["max_sim"] = sim
+
+    relationships = [
+        ExtractedRelationship(
+            source=r["source"],
+            target=r["target"],
+            relationship_type=r["type"],
+            weight=r["weight"]
+        )
+        for r in relationships_map.values()
+    ]
+
+    # Calculate average degree
+    node_count = len(concepts)
+    edge_count = len(relationships)
+    avg_degree = (2 * edge_count / node_count) if node_count > 0 else 0
+
+    print(f"--- Final Extraction Metrics ---")
+    print(f"Concept count: {node_count}")
+    print(f"Relationship count: {edge_count}")
+    print(f"Average degree: {avg_degree:.2f}")
+    print(f"--------------------------------")
 
     return concepts, relationships
 

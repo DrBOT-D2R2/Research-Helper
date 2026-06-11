@@ -161,6 +161,59 @@ def insert_relationship(source_concept_id: int, target_concept_id: int, relation
             (source_concept_id, target_concept_id, relationship_type, weight, evidence_chunk_id),
         )
 
+def reset_knowledge_base() -> None:
+    # 1. Print counts before deletion
+    with db_cursor() as cursor:
+        cursor.execute("SELECT count(*) as count FROM documents")
+        doc_count = cursor.fetchone()["count"]
+        cursor.execute("SELECT count(*) as count FROM chunks")
+        chunk_count = cursor.fetchone()["count"]
+        cursor.execute("SELECT count(*) as count FROM concepts")
+        concept_count = cursor.fetchone()["count"]
+        cursor.execute("SELECT count(*) as count FROM concept_relationships")
+        rel_count = cursor.fetchone()["count"]
+
+    print("--- Before Reset ---")
+    print(f"Documents: {doc_count}")
+    print(f"Chunks: {chunk_count}")
+    print(f"Concepts: {concept_count}")
+    print(f"Relationships: {rel_count}")
+
+    # 2. Delete all existing data
+    with db_cursor() as cursor:
+        # Tables are linked by foreign keys with ON DELETE CASCADE
+        cursor.execute("DELETE FROM documents")
+        cursor.execute("DELETE FROM concepts")
+    
+    # 2.5 Vacuum to clear any remaining storage (must be outside transaction)
+    conn = get_connection()
+    try:
+        conn.execute("VACUUM")
+    finally:
+        conn.close()
+
+    # 3. Clear uploaded files
+    upload_dir = settings.data_dir / "uploads"
+    if upload_dir.exists():
+        import shutil
+        for item in upload_dir.iterdir():
+            if item.is_file():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item)
+    
+    # 4. Print counts after deletion
+    with db_cursor() as cursor:
+        cursor.execute("SELECT count(*) as count FROM documents")
+        doc_count = cursor.fetchone()["count"]
+        cursor.execute("SELECT count(*) as count FROM concepts")
+        concept_count = cursor.fetchone()["count"]
+
+    print("--- After Reset ---")
+    print(f"Documents: {doc_count}")
+    print(f"Concepts: {concept_count}")
+    print("Knowledge base has been fully reset.")
+
 def fetch_all(sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
     with db_cursor() as cursor:
         cursor.execute(sql, params)
