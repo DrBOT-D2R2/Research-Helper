@@ -27,6 +27,7 @@ class ConceptRead(BaseModel):
     name: str
     description: str | None = None
     frequency: int
+    entity_type: str = "Concept"
     created_at: datetime
 
 class RelationshipRead(BaseModel):

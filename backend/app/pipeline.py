@@ -73,6 +73,7 @@ class ExtractedConcept:
     name: str
     description: str | None = None
     embedding: str | None = None
+    entity_type: str = "Concept"
 
 @dataclass(slots=True)
 class ExtractedRelationship:
@@ -181,6 +182,15 @@ def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
     if not name or len(name) < 2:
         return False
         
+    etype = classify_entity(name)
+    
+    # If it's a specific technical type, we generally want to keep it
+    if etype in {"Measurement", "Formula", "Unit", "Variable"}:
+        # Still reject purely numeric strings that aren't variables or formulas
+        if etype == "Measurement" and re.match(r"^[0-9.]+$", name):
+            return False
+        return True
+
     # Rule: Must start with a letter or number (avoid math symbols like =, +, etc.)
     if not re.match(r"^[a-z0-9]", name):
         return False
@@ -224,6 +234,31 @@ def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
     if len(name) < 2:
         return False
     return True
+
+def classify_entity(name: str) -> str:
+    # 1. Measurement: numbers followed by unit (1 cm, 10 cm, 40 cm)
+    if re.search(r"\d+\s*(cm|m|mm|kg|g|s|Hz|hz|rad|deg|degree|meter|kilogram|second|n\b)", name, re.IGNORECASE):
+        return "Measurement"
+        
+    # 2. Unit: single or common units (m, cm, kg, Hz)
+    units = {"m", "cm", "mm", "kg", "g", "s", "hz", "rad", "deg", "meter", "kg/m", "n/m", "n"}
+    if name in units:
+        return "Unit"
+        
+    # 3. Formula: contains math operators or common math functions
+    if any(op in name for op in ["=", "+", "×", "*", "/", "λ", "π", "θ", "ω", "σ", "ρ", "√"]):
+        return "Formula"
+    if re.search(r"\b(sin|cos|tan|log|exp|ln)\b", name, re.IGNORECASE):
+        return "Formula"
+    if re.search(r"\d+[a-zπθλω]", name): # e.g., 2π, 2f
+        return "Formula"
+        
+    # 4. Variable: very short, often single letter, but not a common word
+    if len(name) <= 2 and name not in {"a", "i", "to", "in", "on", "of", "at"}:
+        return "Variable"
+        
+    # Default
+    return "Concept"
 
 def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> tuple[list[ExtractedConcept], list[ExtractedRelationship]]:
     nlp = get_nlp()
@@ -273,7 +308,11 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
     top_names = {name for name, count in top_candidates}
 
     concepts = [
-        ExtractedConcept(name=name, description=f"Observed {count} time(s).")
+        ExtractedConcept(
+            name=name, 
+            description=f"Observed {count} time(s).",
+            entity_type=classify_entity(name)
+        )
         for name, count in top_candidates
     ]
 

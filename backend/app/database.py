@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS concepts (
     description TEXT,
     embedding TEXT,
     frequency INTEGER NOT NULL DEFAULT 1,
+    entity_type TEXT NOT NULL DEFAULT 'Concept',
+    first_seen_index INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
@@ -129,23 +131,24 @@ def insert_chunk(document_id: int, chunk_index: int, content: str, token_estimat
         )
         return int(cursor.lastrowid)
 
-def upsert_concept(name: str, description: str | None = None, embedding: str | None = None) -> int:
+def upsert_concept(name: str, description: str | None = None, embedding: str | None = None, entity_type: str = "Concept", first_seen_index: int = 0) -> int:
     with db_cursor() as cursor:
-        cursor.execute("SELECT id, frequency FROM concepts WHERE name = ?", (name,))
+        cursor.execute("SELECT id, frequency, first_seen_index FROM concepts WHERE name = ?", (name,))
         row = cursor.fetchone()
         if row:
+            new_first_seen = min(int(row["first_seen_index"]), first_seen_index)
             cursor.execute(
-                "UPDATE concepts SET frequency = ?, description = COALESCE(?, description) WHERE id = ?",
-                (int(row["frequency"]) + 1, description, int(row["id"])),
+                "UPDATE concepts SET frequency = ?, description = COALESCE(?, description), entity_type = ?, first_seen_index = ? WHERE id = ?",
+                (int(row["frequency"]) + 1, description, entity_type, new_first_seen, int(row["id"])),
             )
             return int(row["id"])
 
         cursor.execute(
             """
-            INSERT INTO concepts (name, description, embedding, frequency, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO concepts (name, description, embedding, frequency, entity_type, first_seen_index, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (name, description, embedding, 1, utc_now()),
+            (name, description, embedding, 1, entity_type, first_seen_index, utc_now()),
         )
         return int(cursor.lastrowid)
 

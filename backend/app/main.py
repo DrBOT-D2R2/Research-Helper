@@ -131,14 +131,23 @@ def create_app() -> FastAPI:
                 )
 
             concepts, relationships = extract_concepts(text)
-            concept_ids = {
-                concept.name: upsert_concept(
+            
+            # Map concepts to their first seen character position
+            # This is a bit complex as extract_concepts doesn't return positions yet
+            # Let's adjust extract_concepts signature or handle it here
+            concept_ids = {}
+            for concept in concepts:
+                # Find first occurrence in text
+                first_pos = text.lower().find(concept.name.lower())
+                first_pos = first_pos if first_pos != -1 else 0
+                
+                concept_ids[concept.name] = upsert_concept(
                     name=concept.name,
                     description=concept.description,
                     embedding=concept.embedding,
+                    entity_type=concept.entity_type,
+                    first_seen_index=first_pos
                 )
-                for concept in concepts
-            }
 
             for relationship in relationships:
                 source_id = concept_ids.get(relationship.source)
@@ -205,14 +214,28 @@ def create_app() -> FastAPI:
         return LearningPathResponse(target_concept_id=concept_id, steps=steps)
 
     @app.get("/api/concepts", response_model=list[ConceptRead], tags=["concepts"])
-    def list_concepts(q: str | None = Query(default=None)) -> list[ConceptRead]:
+    def list_concepts(
+        q: str | None = Query(default=None),
+        entity_type: str | None = Query(default=None)
+    ) -> list[ConceptRead]:
+        sql = "SELECT * FROM concepts"
+        params: list[Any] = []
+        where_clauses: list[str] = []
+
         if q:
-            rows = fetch_all(
-                "SELECT * FROM concepts WHERE name LIKE ? ORDER BY frequency DESC, name ASC",
-                (f"%{q.lower()}%",),
-            )
-        else:
-            rows = fetch_all("SELECT * FROM concepts ORDER BY frequency DESC, name ASC")
+            where_clauses.append("name LIKE ?")
+            params.append(f"%{q.lower()}%")
+        
+        if entity_type and entity_type != "All":
+            where_clauses.append("entity_type = ?")
+            params.append(entity_type)
+
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+        
+        sql += " ORDER BY frequency DESC, name ASC"
+        
+        rows = fetch_all(sql, tuple(params))
         return [ConceptRead.model_validate(dict(row)) for row in rows]
 
     @app.get("/api/concepts/{concept_id}", response_model=ConceptDetail, tags=["concepts"])
@@ -239,6 +262,11 @@ def create_app() -> FastAPI:
             concept=ConceptRead.model_validate(dict(concept)),
             related=[ConceptRead.model_validate(dict(row)) for row in related_rows],
         )
+
+    @app.get("/api/stats/types", tags=["admin"])
+    def get_type_stats() -> dict[str, int]:
+        rows = fetch_all("SELECT entity_type, count(*) as count FROM concepts GROUP BY entity_type")
+        return {str(row["entity_type"]): int(row["count"]) for row in rows}
 
     return app
 

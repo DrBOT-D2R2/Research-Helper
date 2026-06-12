@@ -1,10 +1,12 @@
 export type Concept = {
   id: number;
   name: string;
-  description?: string | null;
+  description?: string;
   frequency: number;
+  entity_type: string;
   created_at: string;
 };
+
 
 export type GraphNode = {
   id: string;

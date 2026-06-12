@@ -12,6 +12,7 @@ export default function DashboardPage() {
   
   const concepts = useAsync<Concept[]>(() => apiClient.get("/api/concepts"), [resetStats]);
   const graph = useAsync<GraphResponse>(() => apiClient.get("/api/graph"), [resetStats]);
+  const typeStats = useAsync<Record<string, number>>(() => apiClient.get("/api/stats/types"), [resetStats]);
 
   const handleReset = async () => {
     const confirm = window.confirm(
@@ -69,6 +70,18 @@ export default function DashboardPage() {
         <StatCard label="Relationships" value={graph.data?.edges.length ?? 0} />
         <StatCard label="Graph Nodes" value={graph.data?.nodes.length ?? 0} />
       </div>
+
+      {typeStats.data && Object.keys(typeStats.data).length > 0 && (
+        <div className="stack" style={{ marginTop: "2rem" }}>
+          <h3>Concept Types Breakdown</h3>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+            {Object.entries(typeStats.data).map(([type, count]) => (
+              <StatCard key={type} label={type} value={count} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {!concepts.loading && (concepts.data?.length ?? 0) === 0 ? (
         <EmptyState
           title="No concepts indexed yet"
