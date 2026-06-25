@@ -1,0 +1,58 @@
+stages:
+  - static_analysis
+  - test
+  - build
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_CACHE_DIR: "1"
+  NPM_CONFIG_FUND: "false"
+  NPM_CONFIG_AUDIT: "false"
+
+.python_setup:
+  image: python:3.12
+  before_script:
+    - python --version
+    - pip install -e .[dev]
+
+.node_setup:
+  image: node:20
+  before_script:
+    - node --version
+    - npm --version
+    - cd frontend
+    - npm ci
+
+backend_static_analysis:
+  stage: static_analysis
+  extends: .python_setup
+  tags:
+    - my-custom-runner-tag
+  script:
+    - ruff check .
+    - black --check .
+    - mypy backend
+
+frontend_static_analysis:
+  stage: static_analysis
+  extends: .node_setup
+  tags:
+    - my-custom-runner-tag
+  script:
+    - npm run typecheck
+
+backend_tests:
+  stage: test
+  extends: .python_setup
+  tags:
+    - my-custom-runner-tag
+  script:
+    - pytest
+
+build_placeholder:
+  stage: build
+  extends: .node_setup
+  tags:
+    - my-custom-runner-tag
+  script:
+    - npm run build
