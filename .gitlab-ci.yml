@@ -49,10 +49,17 @@ backend_tests:
   script:
     - pytest
 
-build_placeholder:
+build_images:
   stage: build
-  extends: .node_setup
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    # Safest, standard way to handle DinD without network driver headaches
+    DOCKER_TLS_CERTDIR: "/certs"
   tags:
     - my-custom-runner-tag
   script:
-    - npm run build
+    - docker info # Diagnostic check to confirm daemon is alive
+    - docker build -f Dockerfile.backend -t knowledge-vault-backend:latest .
+    - docker build -f Dockerfile.frontend -t knowledge-vault-frontend:latest .

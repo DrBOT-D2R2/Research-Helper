@@ -5,25 +5,39 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    env_file:
-      - .env.example
-    volumes:
-      - ./data:/app/data
-      - ./backend:/app/backend
-      - ./tests:/app/tests
-    ports:
-      - "8000:8000"
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
+    image: knowledge-vault-backend:latest
+    restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      KNOWLEDGE_VAULT_ENV: production
+      KNOWLEDGE_VAULT_HOST: 0.0.0.0
+      KNOWLEDGE_VAULT_PORT: 8000
+      KNOWLEDGE_VAULT_DATA_DIR: /app/data
+      KNOWLEDGE_VAULT_DATABASE_URL: /app/data/sqlite/knowledge_vault.db
+    expose:
+      - "8000"
     volumes:
-      - ./frontend:/app/frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
+      - backend_data:/app/data
+    networks:
+      - knowledge-vault
 
+frontend:
+      build:
+        context: .
+        file: Dockerfile.frontend
+        args:
+          VITE_API_BASE_URL: /api
+      image: knowledge-vault-frontend:latest
+      restart: unless-stopped
+      depends_on:
+        - backend
+      ports:
+        - "80:80" # Keep it strictly to port 80 for cleartext HTTP traffic for now
+      networks:
+        - knowledge-vault
+
+networks:
+  knowledge-vault:
+    driver: bridge
+
+volumes:
+  backend_data:
