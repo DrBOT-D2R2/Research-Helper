@@ -1,15 +1,52 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential gcc \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m venv "$VIRTUAL_ENV"
+
 COPY pyproject.toml README.md ./
 COPY backend ./backend
-COPY tests ./tests
 COPY scripts ./scripts
 
-RUN pip install --upgrade pip && pip install -e .[dev]
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install . \
+    && python scripts/download_spacy_model.py
+
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    KNOWLEDGE_VAULT_ENV=production \
+    KNOWLEDGE_VAULT_HOST=0.0.0.0 \
+    KNOWLEDGE_VAULT_PORT=8000 \
+    KNOWLEDGE_VAULT_DATA_DIR=/app/data \
+    KNOWLEDGE_VAULT_DATABASE_URL=/app/data/sqlite/knowledge_vault.db
+
+WORKDIR /app
+
+RUN groupadd --system appuser \
+    && useradd --system --gid appuser --create-home --home-dir /app appuser \
+    && mkdir -p /app/data/sqlite
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app/backend ./backend
+COPY pyproject.toml README.md ./
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-

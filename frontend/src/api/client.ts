@@ -12,5 +12,6 @@ export const apiClient = {
   get: <T>(path: string) => request<T>(path),
   postForm: <T>(path: string, formData: FormData) =>
     request<T>(path, { method: "POST", body: formData }),
+  post: <T>(path: string) => request<T>(path, { method: "POST" }),
 };
 

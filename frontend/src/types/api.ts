@@ -1,10 +1,12 @@
 export type Concept = {
   id: number;
   name: string;
-  description?: string | null;
+  description?: string;
   frequency: number;
+  entity_type: string;
   created_at: string;
 };
+
 
 export type GraphNode = {
   id: string;
@@ -34,6 +36,15 @@ export type LearningPathStep = {
 export type LearningPathResponse = {
   target_concept_id: number;
   steps: LearningPathStep[];
+};
+
+export type ResetResponse = {
+  success: boolean;
+  deleted_documents: number;
+  deleted_chunks: number;
+  deleted_concepts: number;
+  deleted_relationships: number;
+  error?: string;
 };
 
 export type SearchResult = {

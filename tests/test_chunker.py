@@ -1,5 +1,4 @@
-from backend.app.ingestion.chunker import chunk_text
-
+from backend.app.pipeline import chunk_text
 
 def test_chunk_text_splits_large_input() -> None:
     text = "Knowledge graphs help learners build context. " * 30
@@ -8,4 +7,3 @@ def test_chunk_text_splits_large_input() -> None:
     assert len(chunks) > 1
     assert chunks[0].token_estimate > 0
     assert chunks[0].char_end > chunks[0].char_start
-
