@@ -2,6 +2,7 @@ def test_prerequisite_path_walks_predecessors(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("KNOWLEDGE_VAULT_DATABASE_URL", str(tmp_path / "test.db"))
 
     from importlib import reload
+
     import backend.app.database as db
     import backend.app.graph as graph
 

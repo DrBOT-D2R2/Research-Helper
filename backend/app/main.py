@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,17 +44,20 @@ from .schemas import (
     UploadResult,
 )
 
+
 def configure_logging() -> None:
     logging.basicConfig(
         level=getattr(logging, settings.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
 
+
 def create_app() -> FastAPI:
     configure_logging()
-    
+
     if os.getenv("KNOWLEDGE_VAULT_RESET") == "true":
         from .database import reset_knowledge_base
+
         reset_knowledge_base()
 
     init_db()
@@ -83,6 +87,7 @@ def create_app() -> FastAPI:
     async def admin_reset() -> ResetResponse:
         try:
             from .database import reset_knowledge_base
+
             stats = reset_knowledge_base()
             logging.info(f"Knowledge base reset successful: {stats}")
             return ResetResponse(success=True, **stats)
@@ -94,11 +99,11 @@ def create_app() -> FastAPI:
                 deleted_chunks=0,
                 deleted_concepts=0,
                 deleted_relationships=0,
-                error=str(e)
+                error=str(e),
             )
 
     @app.post("/api/upload", response_model=UploadResult, tags=["upload"])
-    async def upload_document(file: UploadFile = File(...)) -> UploadResult:
+    async def upload_document(file: UploadFile = File(...)) -> UploadResult:  # noqa: B008
         payload = await validate_upload(file)
         checksum = compute_checksum(payload)
         safe_name = sanitize_filename(file.filename or "document.txt")
@@ -131,7 +136,7 @@ def create_app() -> FastAPI:
                 )
 
             concepts, relationships = extract_concepts(text)
-            
+
             # Map concepts to their first seen character position
             # This is a bit complex as extract_concepts doesn't return positions yet
             # Let's adjust extract_concepts signature or handle it here
@@ -140,13 +145,13 @@ def create_app() -> FastAPI:
                 # Find first occurrence in text
                 first_pos = text.lower().find(concept.name.lower())
                 first_pos = first_pos if first_pos != -1 else 0
-                
+
                 concept_ids[concept.name] = upsert_concept(
                     name=concept.name,
                     description=concept.description,
                     embedding=concept.embedding,
                     entity_type=concept.entity_type,
-                    first_seen_index=first_pos
+                    first_seen_index=first_pos,
                 )
 
             for relationship in relationships:
@@ -164,7 +169,10 @@ def create_app() -> FastAPI:
             update_document_status(document_id, "ready")
             row = fetch_document(document_id)
             if row is None:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Document not found after ingestion.")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Document not found after ingestion.",
+                )
 
             return UploadResult(
                 document=DocumentRead.model_validate(dict(row)),
@@ -205,18 +213,23 @@ def create_app() -> FastAPI:
     ) -> list[SearchResult]:
         return [SearchResult.model_validate(item) for item in semantic_search(q, limit)]
 
-    @app.get("/api/learning-path/{concept_id}", response_model=LearningPathResponse, tags=["learning-path"])
+    @app.get(
+        "/api/learning-path/{concept_id}",
+        response_model=LearningPathResponse,
+        tags=["learning-path"],
+    )
     def get_learning_path(
         concept_id: int,
         depth: int = Query(default=5, ge=1, le=10),
     ) -> LearningPathResponse:
-        steps = [LearningPathStep.model_validate(step) for step in prerequisite_path(concept_id, depth)]
+        steps = [
+            LearningPathStep.model_validate(step) for step in prerequisite_path(concept_id, depth)
+        ]
         return LearningPathResponse(target_concept_id=concept_id, steps=steps)
 
     @app.get("/api/concepts", response_model=list[ConceptRead], tags=["concepts"])
     def list_concepts(
-        q: str | None = Query(default=None),
-        entity_type: str | None = Query(default=None)
+        q: str | None = Query(default=None), entity_type: str | None = Query(default=None)
     ) -> list[ConceptRead]:
         sql = "SELECT * FROM concepts"
         params: list[Any] = []
@@ -225,16 +238,16 @@ def create_app() -> FastAPI:
         if q:
             where_clauses.append("name LIKE ?")
             params.append(f"%{q.lower()}%")
-        
+
         if entity_type and entity_type != "All":
             where_clauses.append("entity_type = ?")
             params.append(entity_type)
 
         if where_clauses:
             sql += " WHERE " + " AND ".join(where_clauses)
-        
+
         sql += " ORDER BY frequency DESC, name ASC"
-        
+
         rows = fetch_all(sql, tuple(params))
         return [ConceptRead.model_validate(dict(row)) for row in rows]
 
@@ -269,5 +282,6 @@ def create_app() -> FastAPI:
         return {str(row["entity_type"]): int(row["count"]) for row in rows}
 
     return app
+
 
 app = create_app()

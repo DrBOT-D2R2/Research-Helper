@@ -1,5 +1,6 @@
 from backend.app.pipeline import chunk_text
 
+
 def test_chunk_text_splits_large_input() -> None:
     text = "Knowledge graphs help learners build context. " * 30
     chunks = chunk_text(text, max_chars=80)

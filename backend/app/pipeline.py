@@ -14,6 +14,7 @@ from fastapi import HTTPException, UploadFile, status
 
 from .database import fetch_all, settings
 
+
 # -- Chunking --
 @dataclass(slots=True)
 class TextChunk:
@@ -22,6 +23,7 @@ class TextChunk:
     char_start: int
     char_end: int
     token_estimate: int
+
 
 def chunk_text(text: str, max_chars: int = 500) -> list[TextChunk]:
     normalized = " ".join(text.split())
@@ -52,6 +54,7 @@ def chunk_text(text: str, max_chars: int = 500) -> list[TextChunk]:
         start = max(end + 1, start + 1)
     return chunks
 
+
 # -- Parsing --
 def parse_document(file_path: Path) -> str:
     suffix = file_path.suffix.lower()
@@ -61,11 +64,13 @@ def parse_document(file_path: Path) -> str:
         return file_path.read_text(encoding="utf-8")
     raise ValueError(f"Unsupported file type: {suffix}")
 
+
 def parse_pdf(file_path: Path) -> str:
     document = fitz.open(file_path)
     pages = [page.get_text("text") for page in document]
     document.close()
     return "\n".join(page.strip() for page in pages if page.strip())
+
 
 # -- Concept Extraction --
 @dataclass(slots=True)
@@ -75,6 +80,7 @@ class ExtractedConcept:
     embedding: str | None = None
     entity_type: str = "Concept"
 
+
 @dataclass(slots=True)
 class ExtractedRelationship:
     source: str
@@ -82,12 +88,15 @@ class ExtractedRelationship:
     relationship_type: str
     weight: float
 
+
 _NLP = None
+
 
 def get_nlp():
     global _NLP
     if _NLP is None:
         import spacy
+
         try:
             _NLP = spacy.load(settings.spacy_model)
         except OSError:
@@ -96,6 +105,7 @@ def get_nlp():
                 _NLP.add_pipe("sentencizer")
     return _NLP
 
+
 def fallback_candidates(text: str) -> list[str]:
     return [
         candidate.lower()
@@ -103,25 +113,124 @@ def fallback_candidates(text: str) -> list[str]:
         if candidate.lower() not in {"the", "and", "for", "with", "that", "this"}
     ]
 
+
 GENERIC_ACADEMIC_WORDS = {
-    "model", "method", "result", "paper", "study", "data", "image", "approach", "system",
-    "analysis", "performance", "experiment", "process", "framework", "technique",
-    "evaluation", "application", "concept", "feature", "example", "table", "figure",
-    "point", "solution", "second", "direction", "length", "case", "value", "term",
-    "part", "problem", "question", "answer", "time", "number", "way", "object",
-    "step", "fact", "idea", "sense", "reason", "change", "area", "type", "form",
-    "level", "order", "group", "set", "end", "start", "point", "side", "line",
-    "work", "state", "mind", "life", "name", "thing", "hand", "eye", "word",
-    "place", "man", "woman", "child", "world", "school", "state", "family",
-    "student", "group", "country", "problem", "hand", "part", "place", "case",
-    "week", "company", "system", "program", "question", "work", "government",
-    "number", "night", "mr", "mrs", "ms", "dr", "st", "ave", "rd", "blvd",
-    "equation", "expression", "variable", "value", "constant", "function", "graph",
-    "difference", "total", "sum", "average", "ratio", "percentage", "rate",
-    "unit", "quantity", "measurement", "scale", "range", "limit", "period",
-    "particle", "wire", "velocity", "speed", "string", "wave", "medium",
-    "point", "solution", "example",
-    "direction", "length", "time", "second", "minute", "hour", "day", "week"
+    "model",
+    "method",
+    "result",
+    "paper",
+    "study",
+    "data",
+    "image",
+    "approach",
+    "system",
+    "analysis",
+    "performance",
+    "experiment",
+    "process",
+    "framework",
+    "technique",
+    "evaluation",
+    "application",
+    "concept",
+    "feature",
+    "example",
+    "table",
+    "figure",
+    "point",
+    "solution",
+    "second",
+    "direction",
+    "length",
+    "case",
+    "value",
+    "term",
+    "part",
+    "problem",
+    "question",
+    "answer",
+    "time",
+    "number",
+    "way",
+    "object",
+    "step",
+    "fact",
+    "idea",
+    "sense",
+    "reason",
+    "change",
+    "area",
+    "type",
+    "form",
+    "level",
+    "order",
+    "group",
+    "set",
+    "end",
+    "start",
+    "side",
+    "line",
+    "work",
+    "state",
+    "mind",
+    "life",
+    "name",
+    "thing",
+    "hand",
+    "eye",
+    "word",
+    "place",
+    "man",
+    "woman",
+    "child",
+    "world",
+    "school",
+    "family",
+    "student",
+    "country",
+    "week",
+    "company",
+    "program",
+    "government",
+    "night",
+    "mr",
+    "mrs",
+    "ms",
+    "dr",
+    "st",
+    "ave",
+    "rd",
+    "blvd",
+    "equation",
+    "expression",
+    "variable",
+    "constant",
+    "function",
+    "graph",
+    "difference",
+    "total",
+    "sum",
+    "average",
+    "ratio",
+    "percentage",
+    "rate",
+    "unit",
+    "quantity",
+    "measurement",
+    "scale",
+    "range",
+    "limit",
+    "period",
+    "particle",
+    "wire",
+    "velocity",
+    "speed",
+    "string",
+    "wave",
+    "medium",
+    "minute",
+    "hour",
+    "day",
 }
 
 # Simple map for abbreviation merging (could be expanded or made dynamic)
@@ -151,45 +260,45 @@ CONCEPT_ALIAS_MAP = {
     "superposition principle": "superposition",
 }
 
+
 def normalize_concept(name: str) -> str:
     # 1. Canonical lowercase
     name = name.lower().strip()
-    
+
     # 2. Remove possessives specifically before stripping punctuation
     name = re.sub(r"'s\b", "", name)
-    
+
     # 3. Remove punctuation like ( ) and leading/trailing whitespace
     name = re.sub(r"[\(\)\"']", "", name)
     name = name.replace("\n", " ")
-    
+
     # 4. Remove leading articles: a, an, the
     name = re.sub(r"^(a|an|the)\s+", "", name)
-    
+
     # 5. Simple plural stripping (optional but helps merging "waves" -> "wave")
     # Only if it ends in 's' and is at least 4 chars to avoid 'as', 'is', etc.
     if len(name) > 3 and name.endswith("s") and not name.endswith("ss"):
         # Very crude singularization, but effective for many technical terms
         name = name[:-1]
-    
+
     # 6. Final strip
     name = name.strip()
-    
+
     # 7. Alias mapping
     return CONCEPT_ALIAS_MAP.get(name, name)
+
 
 def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
     # 0. Basic sanity
     if not name or len(name) < 2:
         return False
-        
+
     etype = classify_entity(name)
-    
+
     # If it's a specific technical type, we generally want to keep it
     if etype in {"Measurement", "Formula", "Unit", "Variable"}:
         # Still reject purely numeric strings that aren't variables or formulas
-        if etype == "Measurement" and re.match(r"^[0-9.]+$", name):
-            return False
-        return True
+        return not (etype == "Measurement" and re.match(r"^[0-9.]+$", name))
 
     # Rule: Must start with a letter or number (avoid math symbols like =, +, etc.)
     if not re.match(r"^[a-z0-9]", name):
@@ -198,26 +307,25 @@ def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
     # Rule 3: Filter generic words
     if name in GENERIC_ACADEMIC_WORDS:
         return False
-        
+
     # NEW: Numeric / Junk filtering
     # Reject purely numeric or punctuation
     if re.match(r"^[0-9. ,;:-]+$", name):
         return False
-    
+
     # Split into words to check composition
     words = name.split()
-    if not words: return False
-    
+    if not words:
+        return False
+
     junk_words = 0
     for w in words:
         # Numeric fragments (10, 2a, 3.14)
-        if re.match(r"^[0-9.]+[a-z]?$|^[a-z][0-9.]+$", w):
+        if re.match(r"^[0-9.]+[a-z]?$|^[a-z][0-9.]+$", w) or (
+            len(w) == 1 and w not in {"a", "i"} and w not in CONCEPT_ALIAS_MAP.values()
+        ):
             junk_words += 1
-        # Single chars (x, y, z) that aren't 'a' or 'i' or in alias map
-        elif len(w) == 1 and w not in {"a", "i"}:
-            if w not in CONCEPT_ALIAS_MAP.values():
-                junk_words += 1
-                
+
     # Reject if more than 50% of the phrase is junk
     if junk_words / len(words) > 0.5:
         return False
@@ -226,56 +334,63 @@ def is_valid_concept(name: str, count: int, is_ner: bool) -> bool:
     if count < 2 and not is_ner and " " not in name:
         return False
     # Rule 2: Prefer multi-word concepts (len > 3 for single words to avoid junk)
-    if " " not in name and len(name) <= 3 and not is_ner:
+    if " " not in name and len(name) <= 3 and not is_ner and name not in CONCEPT_ALIAS_MAP.values():
         # Keep short single words only if they are common abbreviations (like CNN, MRI)
-        if name not in CONCEPT_ALIAS_MAP.values():
-            return False
-    # Filter out junk
-    if len(name) < 2:
         return False
-    return True
+    # Filter out junk
+    return not len(name) < 2
+
 
 def classify_entity(name: str) -> str:
     # 1. Measurement: numbers followed by unit (1 cm, 10 cm, 40 cm)
-    if re.search(r"\d+\s*(cm|m|mm|kg|g|s|Hz|hz|rad|deg|degree|meter|kilogram|second|n\b)", name, re.IGNORECASE):
+    if re.search(
+        r"\d+\s*(cm|m|mm|kg|g|s|Hz|hz|rad|deg|degree|meter|kilogram|second|n\b)",
+        name,
+        re.IGNORECASE,
+    ):
         return "Measurement"
-        
+
     # 2. Unit: single or common units (m, cm, kg, Hz)
     units = {"m", "cm", "mm", "kg", "g", "s", "hz", "rad", "deg", "meter", "kg/m", "n/m", "n"}
     if name in units:
         return "Unit"
-        
+
     # 3. Formula: contains math operators or common math functions
     if any(op in name for op in ["=", "+", "×", "*", "/", "λ", "π", "θ", "ω", "σ", "ρ", "√"]):
         return "Formula"
     if re.search(r"\b(sin|cos|tan|log|exp|ln)\b", name, re.IGNORECASE):
         return "Formula"
-    if re.search(r"\d+[a-zπθλω]", name): # e.g., 2π, 2f
+    if re.search(r"\d+[a-zπθλω]", name):  # e.g., 2π, 2f
         return "Formula"
-        
+
     # 4. Variable: very short, often single letter, but not a common word
     if len(name) <= 2 and name not in {"a", "i", "to", "in", "on", "of", "at"}:
         return "Variable"
-        
+
     # Default
     return "Concept"
 
-def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> tuple[list[ExtractedConcept], list[ExtractedRelationship]]:
+
+def extract_concepts(
+    text: str, top_n: int = 50, sim_threshold: float = 0.4
+) -> tuple[list[ExtractedConcept], list[ExtractedRelationship]]:
     nlp = get_nlp()
     doc = nlp(text)
 
     # Rule 1: Extract noun phrases rather than individual nouns
     candidate_counts = Counter()
     ner_names = set()
-    
+
     # We need to map the normalized name back to some "original" variants for text searching later
     normalized_to_variants = {}
 
     def add_candidate(original: str, is_ner: bool = False):
         norm = normalize_concept(original)
-        if len(norm) < 2: return
+        if len(norm) < 2:
+            return
         candidate_counts[norm] += 1
-        if is_ner: ner_names.add(norm)
+        if is_ner:
+            ner_names.add(norm)
         if norm not in normalized_to_variants:
             normalized_to_variants[norm] = set()
         normalized_to_variants[norm].add(original.strip().lower())
@@ -298,10 +413,10 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
             filtered_candidates[name] = count
         else:
             rejected.append(name)
-    
-    print(f"--- Rejected Concept Examples ---")
-    print(rejected[:15]) # Show first 15 rejected items
-    print(f"---------------------------------")
+
+    print("--- Rejected Concept Examples ---")
+    print(rejected[:15])  # Show first 15 rejected items
+    print("---------------------------------")
 
     # Rule 6: Limit graph generation to top N concepts
     top_candidates = sorted(filtered_candidates.items(), key=lambda x: x[1], reverse=True)[:top_n]
@@ -309,9 +424,7 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
 
     concepts = [
         ExtractedConcept(
-            name=name, 
-            description=f"Observed {count} time(s).",
-            entity_type=classify_entity(name)
+            name=name, description=f"Observed {count} time(s).", entity_type=classify_entity(name)
         )
         for name, count in top_candidates
     ]
@@ -326,11 +439,19 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
         concept_to_emb = {}
 
     relationships_map = {}
-    dependency_keywords = {"before", "follows", "requires", "prerequisite", "depends", "using", "via"}
+    dependency_keywords = {
+        "before",
+        "follows",
+        "requires",
+        "prerequisite",
+        "depends",
+        "using",
+        "via",
+    }
 
     for sentence in doc.sents:
         sentence_text = sentence.text.lower()
-        
+
         # Which top concepts are in this sentence?
         present = []
         for name in top_names:
@@ -342,32 +463,34 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
             variants = normalized_to_variants.get(name, [])
             if any(v in sentence_text for v in variants):
                 present.append(name)
-        
+
         # Sort to ensure consistent source/target order
         present = sorted(list(set(present)))
-        
+
         # Strict relationship creation:
         # 1. Same sentence (looping through present)
         for i, source in enumerate(present):
-            for target in present[i+1:]:
+            for target in present[i + 1 :]:
                 # 2. Semantic Similarity check
-                sim = cosine_similarity(concept_to_emb[source].tolist(), concept_to_emb[target].tolist())
-                
+                sim = cosine_similarity(
+                    concept_to_emb[source].tolist(), concept_to_emb[target].tolist()
+                )
+
                 # 3. Dependency detection (keyword heuristic)
                 has_dep = any(kw in sentence_text for kw in dependency_keywords)
-                
+
                 # Only create if sufficiently similar OR explicitly linked by dependency keywords
                 if sim > sim_threshold or has_dep:
                     rel_key = tuple(sorted((source, target)))
                     relationship_type = "depends_on" if has_dep else "related_to"
-                    
+
                     if rel_key not in relationships_map:
                         relationships_map[rel_key] = {
                             "source": source,
                             "target": target,
                             "type": relationship_type,
                             "weight": 0.0,
-                            "max_sim": sim
+                            "max_sim": sim,
                         }
                     # Aggregate weights
                     relationships_map[rel_key]["weight"] += 1.0
@@ -375,20 +498,17 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
                     if sim > relationships_map[rel_key]["max_sim"]:
                         relationships_map[rel_key]["max_sim"] = sim
 
-    relationships = [
+    [
         ExtractedRelationship(
-            source=r["source"],
-            target=r["target"],
-            relationship_type=r["type"],
-            weight=r["weight"]
+            source=r["source"], target=r["target"], relationship_type=r["type"], weight=r["weight"]
         )
         for r in relationships_map.values()
     ]
 
     # --- Relationship Scoring & Capping ---
-    MAX_RELATIONSHIPS_PER_NODE = 5
+    max_relationships_per_node = 5
     scored_rels = []
-    for rel_key, r in relationships_map.items():
+    for _rel_key, r in relationships_map.items():
         # Score = Frequency * (1 + similarity) + Dependency Bonus
         score = r["weight"] * (1 + r["max_sim"])
         if r["type"] == "depends_on":
@@ -398,16 +518,17 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
 
     # Cap relationships per node to keep only the strongest connections
     from collections import defaultdict
+
     node_connections = defaultdict(list)
     for r in scored_rels:
         node_connections[r["source"]].append(r)
         node_connections[r["target"]].append(r)
 
     final_rel_keys = set()
-    for node, rels in node_connections.items():
+    for _node, rels in node_connections.items():
         # Sort by score descending
         rels.sort(key=lambda x: x["score"], reverse=True)
-        for r in rels[:MAX_RELATIONSHIPS_PER_NODE]:
+        for r in rels[:max_relationships_per_node]:
             final_rel_keys.add(tuple(sorted((r["source"], r["target"]))))
 
     final_relationships = [
@@ -415,7 +536,7 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
             source=relationships_map[k]["source"],
             target=relationships_map[k]["target"],
             relationship_type=relationships_map[k]["type"],
-            weight=relationships_map[k]["score"] # Use score as weight for visualization
+            weight=relationships_map[k]["score"],  # Use score as weight for visualization
         )
         for k in final_rel_keys
     ]
@@ -430,29 +551,33 @@ def extract_concepts(text: str, top_n: int = 50, sim_threshold: float = 0.4) -> 
     avg_degree = (2 * edge_count / node_count) if node_count > 0 else 0
     density = edge_count / possible_edges if node_count > 1 else 0
 
-    print(f"--- Final Extraction Metrics ---")
+    print("--- Final Extraction Metrics ---")
     print(f"Concept count: {node_count}")
     print(f"Relationship count: {edge_count}")
     print(f"Average degree: {avg_degree:.2f}")
     print(f"Graph density: {density:.4f}")
-    print(f"--------------------------------")
-    
+    print("--------------------------------")
+
     if final_relationships:
-        print(f"--- Top 20 Strongest Relationships ---")
+        print("--- Top 20 Strongest Relationships ---")
         for r in final_relationships[:20]:
             print(f"{r.source} <-({r.relationship_type})-> {r.target} [Score: {r.weight:.2f}]")
-        print(f"---------------------------------------")
+        print("---------------------------------------")
 
     return concepts, final_relationships
 
+
 def serialize_embedding(vector: list[float]) -> str:
     return json.dumps(vector)
+
 
 # -- Search --
 @lru_cache(maxsize=1)
 def get_model():
     from sentence_transformers import SentenceTransformer
+
     return SentenceTransformer(settings.embedding_model)
+
 
 def cosine_similarity(lhs: list[float], rhs: list[float]) -> float:
     numerator = sum(a * b for a, b in zip(lhs, rhs, strict=False))
@@ -461,6 +586,7 @@ def cosine_similarity(lhs: list[float], rhs: list[float]) -> float:
     if lhs_norm == 0 or rhs_norm == 0:
         return 0.0
     return numerator / (lhs_norm * rhs_norm)
+
 
 def lexical_search(query: str, limit: int = 10) -> list[dict[str, float | int | str]]:
     rows = fetch_all(
@@ -482,6 +608,7 @@ def lexical_search(query: str, limit: int = 10) -> list[dict[str, float | int | 
         }
         for row in rows
     ]
+
 
 def semantic_search(query: str, limit: int = 10) -> list[dict[str, float | int | str]]:
     concepts = fetch_all("SELECT id, name, frequency FROM concepts")
@@ -506,9 +633,11 @@ def semantic_search(query: str, limit: int = 10) -> list[dict[str, float | int |
     except Exception:
         return lexical_search(query, limit)
 
+
 # -- File Validation / Security --
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md"}
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
 
 async def validate_upload(file: UploadFile) -> bytes:
     if not file.filename:
@@ -523,7 +652,9 @@ async def validate_upload(file: UploadFile) -> bytes:
 
     payload = await file.read()
     if not payload:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty files are not allowed.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Empty files are not allowed."
+        )
 
     if len(payload) > settings.max_upload_size_bytes:
         raise HTTPException(
@@ -533,9 +664,11 @@ async def validate_upload(file: UploadFile) -> bytes:
 
     return payload
 
+
 def sanitize_filename(filename: str) -> str:
     stem = SAFE_FILENAME_RE.sub("-", Path(filename).stem).strip("-") or "document"
     return f"{stem}{Path(filename).suffix.lower()}"
+
 
 def compute_checksum(payload: bytes) -> str:
     return sha256(payload).hexdigest()

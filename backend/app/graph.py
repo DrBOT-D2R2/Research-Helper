@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections import deque
+
 import networkx as nx
 
 from .database import fetch_all
+
 
 def build_concept_graph() -> nx.DiGraph:
     graph = nx.DiGraph()
@@ -27,6 +29,7 @@ def build_concept_graph() -> nx.DiGraph:
             weight=edge["weight"],
         )
     return graph
+
 
 def prerequisite_path(target_concept_id: int, depth: int = 5) -> list[dict[str, int | str]]:
     graph = build_concept_graph()

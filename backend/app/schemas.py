@@ -4,6 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+
 class DocumentRead(BaseModel):
     id: int
     filename: str
@@ -12,6 +13,7 @@ class DocumentRead(BaseModel):
     storage_path: str
     status: str
     created_at: datetime
+
 
 class ChunkRead(BaseModel):
     id: int
@@ -22,6 +24,7 @@ class ChunkRead(BaseModel):
     char_start: int
     char_end: int
 
+
 class ConceptRead(BaseModel):
     id: int
     name: str
@@ -29,6 +32,7 @@ class ConceptRead(BaseModel):
     frequency: int
     entity_type: str = "Concept"
     created_at: datetime
+
 
 class RelationshipRead(BaseModel):
     id: int
@@ -38,16 +42,19 @@ class RelationshipRead(BaseModel):
     weight: float
     evidence_chunk_id: int | None = None
 
+
 class UploadResult(BaseModel):
     document: DocumentRead
     chunk_count: int
     concept_count: int
     relationship_count: int
 
+
 class GraphNode(BaseModel):
     id: str
     label: str
     frequency: int = 1
+
 
 class GraphEdge(BaseModel):
     id: str
@@ -56,13 +63,16 @@ class GraphEdge(BaseModel):
     relationship_type: str
     weight: float
 
+
 class GraphResponse(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
 
+
 class ConceptDetail(BaseModel):
     concept: ConceptRead
     related: list[ConceptRead] = Field(default_factory=list)
+
 
 class SearchResult(BaseModel):
     concept_id: int
@@ -70,14 +80,17 @@ class SearchResult(BaseModel):
     score: float
     frequency: int
 
+
 class LearningPathStep(BaseModel):
     concept_id: int
     name: str
     depth: int
 
+
 class LearningPathResponse(BaseModel):
     target_concept_id: int
     steps: list[LearningPathStep]
+
 
 class ResetResponse(BaseModel):
     success: bool
