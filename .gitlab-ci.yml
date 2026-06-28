@@ -19,7 +19,7 @@ cache:
 .python_lint_setup:
   image: python:3.12-slim
   before_script:
-    - pip install ruff black
+    - pip install "ruff<1.0" "black<25.0"
 
 .python_setup:
   image: python:3.12
