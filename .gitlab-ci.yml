@@ -5,6 +5,22 @@ stages:
   - test
   - deploy
 
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .cache/pip
+    - frontend/node_modules/
+    - frontend/.npm/
+
+.python_lint_setup:
+  image: python:3.12-slim
+  before_script:
+    - pip install ruff black
+
 .python_setup:
   image: python:3.12
   before_script:
@@ -31,7 +47,7 @@ stages:
 
 lint:python-ruff:
   stage: lint
-  extends: .python_setup
+  extends: .python_lint_setup
   tags:
     - my-custom-runner-tag
   script:
@@ -39,7 +55,7 @@ lint:python-ruff:
 
 lint:python-black:
   stage: lint
-  extends: .python_setup
+  extends: .python_lint_setup
   tags:
     - my-custom-runner-tag
   script:
