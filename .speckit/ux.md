@@ -38,4 +38,3 @@
 - No login or onboarding wizard
 - Keep controls obvious and task-oriented
 - Favor inspectability over automation magic
-

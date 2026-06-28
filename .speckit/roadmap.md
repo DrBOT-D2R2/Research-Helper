@@ -21,4 +21,3 @@
 - Versioned graph history
 - Pluggable extractors and alternative embedding models
 - Multi-format knowledge dashboards
-

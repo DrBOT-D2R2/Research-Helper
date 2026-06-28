@@ -21,4 +21,3 @@ The MVP does not introduce a full metrics stack, but it should track:
 - API returns explicit validation and processing errors
 - Ingestion failures mark document status as failed
 - Search falls back gracefully when embeddings are not available
-

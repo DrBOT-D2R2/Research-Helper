@@ -11,4 +11,3 @@ export default function EmptyState({ title, body }: EmptyStateProps) {
     </div>
   );
 }
-

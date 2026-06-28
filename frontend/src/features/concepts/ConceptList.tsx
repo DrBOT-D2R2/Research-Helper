@@ -21,4 +21,3 @@ export default function ConceptList({ concepts }: ConceptListProps) {
     </div>
   );
 }
-

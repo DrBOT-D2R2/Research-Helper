@@ -89,8 +89,13 @@ def create_app() -> FastAPI:
             from .database import reset_knowledge_base
 
             stats = reset_knowledge_base()
-            logging.info(f"Knowledge base reset successful: {stats}")
-            return ResetResponse(success=True, **stats)
+            return ResetResponse(
+                success=True,
+                deleted_documents=stats["deleted_documents"],
+                deleted_chunks=stats["deleted_chunks"],
+                deleted_concepts=stats["deleted_concepts"],
+                deleted_relationships=stats["deleted_relationships"],
+            )
         except Exception as e:
             logging.error(f"Knowledge base reset failed: {e}")
             return ResetResponse(
@@ -106,6 +111,15 @@ def create_app() -> FastAPI:
     async def upload_document(file: UploadFile = File(...)) -> UploadResult:  # noqa: B008
         payload = await validate_upload(file)
         checksum = compute_checksum(payload)
+
+        # Check for duplicates using checksum
+        existing = fetch_one("SELECT id, filename FROM documents WHERE checksum = ?", (checksum,))
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File already exists as '{existing['filename']}'.",
+            )
+
         safe_name = sanitize_filename(file.filename or "document.txt")
         output_path = settings.data_dir / "uploads" / safe_name
         output_path.parent.mkdir(parents=True, exist_ok=True)

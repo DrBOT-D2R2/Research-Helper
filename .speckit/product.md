@@ -30,4 +30,3 @@ Knowledge Vault becomes a personal knowledge operating system:
 - Learning plans across multiple documents and subjects
 - Incremental re-indexing and background ingestion
 - Exportable graph packages for presentations or coursework
-

@@ -40,4 +40,3 @@
 - Parsing, chunking, extraction, storage, and traversal are separate modules.
 - SQLite schema uses stable IDs so later vector indexes or annotation tables can be added without rewriting the core model.
 - The API returns normalized shapes for concepts and graph nodes, making the UI resilient to backend iteration.
-

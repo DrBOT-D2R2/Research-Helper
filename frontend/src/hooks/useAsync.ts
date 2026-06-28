@@ -34,4 +34,3 @@ export function useAsync<T>(loader: () => Promise<T>, dependencies: unknown[]) {
 
   return { data, error, loading };
 }
-

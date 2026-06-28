@@ -9,7 +9,7 @@ import type { Concept, GraphResponse, ResetResponse } from "../types/api";
 export default function DashboardPage() {
   const [isResetting, setIsResetting] = useState(false);
   const [resetStats, setResetStats] = useState<ResetResponse | null>(null);
-  
+
   const concepts = useAsync<Concept[]>(() => apiClient.get("/api/concepts"), [resetStats]);
   const graph = useAsync<GraphResponse>(() => apiClient.get("/api/graph"), [resetStats]);
   const typeStats = useAsync<Record<string, number>>(() => apiClient.get("/api/stats/types"), [resetStats]);
@@ -47,14 +47,14 @@ export default function DashboardPage() {
           description="Inspect current graph size and verify the repository is indexed locally."
         />
         <div style={{ padding: "0 1rem" }}>
-          <button 
-            onClick={handleReset} 
+          <button
+            onClick={handleReset}
             disabled={isResetting}
-            style={{ 
-              backgroundColor: isResetting ? "#ccc" : "#d9534f", 
-              color: "white", 
-              border: "none", 
-              padding: "0.5rem 1rem", 
+            style={{
+              backgroundColor: isResetting ? "#ccc" : "#d9534f",
+              color: "white",
+              border: "none",
+              padding: "0.5rem 1rem",
               borderRadius: "4px",
               cursor: isResetting ? "not-allowed" : "pointer",
               fontWeight: "bold"
@@ -64,7 +64,7 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
-      
+
       <div className="grid">
         <StatCard label="Concepts" value={concepts.data?.length ?? 0} />
         <StatCard label="Relationships" value={graph.data?.edges.length ?? 0} />
@@ -91,4 +91,3 @@ export default function DashboardPage() {
     </section>
   );
 }
-

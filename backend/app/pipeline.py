@@ -8,6 +8,7 @@ from functools import lru_cache
 from hashlib import sha256
 from math import sqrt
 from pathlib import Path
+from typing import Any, cast
 
 import fitz
 from fastapi import HTTPException, UploadFile, status
@@ -92,7 +93,7 @@ class ExtractedRelationship:
 _NLP = None
 
 
-def get_nlp():
+def get_nlp() -> Any:
     global _NLP
     if _NLP is None:
         import spacy
@@ -378,13 +379,13 @@ def extract_concepts(
     doc = nlp(text)
 
     # Rule 1: Extract noun phrases rather than individual nouns
-    candidate_counts = Counter()
-    ner_names = set()
+    candidate_counts: Counter[str] = Counter()
+    ner_names: set[str] = set()
 
     # We need to map the normalized name back to some "original" variants for text searching later
-    normalized_to_variants = {}
+    normalized_to_variants: dict[str, set[str]] = {}
 
-    def add_candidate(original: str, is_ner: bool = False):
+    def add_candidate(original: str, is_ner: bool = False) -> None:
         norm = normalize_concept(original)
         if len(norm) < 2:
             return
@@ -438,7 +439,7 @@ def extract_concepts(
     else:
         concept_to_emb = {}
 
-    relationships_map = {}
+    relationships_map: dict[tuple[str, str], dict[str, Any]] = {}
     dependency_keywords = {
         "before",
         "follows",
@@ -460,7 +461,7 @@ def extract_concepts(
                 present.append(name)
                 continue
             # Check any of the original variants that were normalized to this name
-            variants = normalized_to_variants.get(name, [])
+            variants = normalized_to_variants.get(name, set())
             if any(v in sentence_text for v in variants):
                 present.append(name)
 
@@ -481,7 +482,7 @@ def extract_concepts(
 
                 # Only create if sufficiently similar OR explicitly linked by dependency keywords
                 if sim > sim_threshold or has_dep:
-                    rel_key = tuple(sorted((source, target)))
+                    rel_key = (source, target) if source < target else (target, source)
                     relationship_type = "depends_on" if has_dep else "related_to"
 
                     if rel_key not in relationships_map:
@@ -500,36 +501,42 @@ def extract_concepts(
 
     [
         ExtractedRelationship(
-            source=r["source"], target=r["target"], relationship_type=r["type"], weight=r["weight"]
+            source=str(rel_v["source"]),
+            target=str(rel_v["target"]),
+            relationship_type=str(rel_v["type"]),
+            weight=float(rel_v["weight"]),
         )
-        for r in relationships_map.values()
+        for rel_v in relationships_map.values()
     ]
 
     # --- Relationship Scoring & Capping ---
     max_relationships_per_node = 5
-    scored_rels = []
-    for _rel_key, r in relationships_map.items():
+    scored_rels: list[dict[str, Any]] = []
+    for _rel_key, rel_val in relationships_map.items():
         # Score = Frequency * (1 + similarity) + Dependency Bonus
-        score = r["weight"] * (1 + r["max_sim"])
-        if r["type"] == "depends_on":
+        score = rel_val["weight"] * (1 + rel_val["max_sim"])
+        if rel_val["type"] == "depends_on":
             score += 2.0
-        r["score"] = score
-        scored_rels.append(r)
+        rel_val["score"] = score
+        scored_rels.append(rel_val)
 
     # Cap relationships per node to keep only the strongest connections
     from collections import defaultdict
 
-    node_connections = defaultdict(list)
-    for r in scored_rels:
-        node_connections[r["source"]].append(r)
-        node_connections[r["target"]].append(r)
+    node_connections: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for scored_r in scored_rels:
+        node_connections[scored_r["source"]].append(scored_r)
+        node_connections[scored_r["target"]].append(scored_r)
 
-    final_rel_keys = set()
+    final_rel_keys: set[tuple[str, str]] = set()
     for _node, rels in node_connections.items():
         # Sort by score descending
-        rels.sort(key=lambda x: x["score"], reverse=True)
-        for r in rels[:max_relationships_per_node]:
-            final_rel_keys.add(tuple(sorted((r["source"], r["target"]))))
+        rels.sort(key=lambda x: float(x["score"]), reverse=True)
+        for limit_r in rels[:max_relationships_per_node]:
+            s_node = str(limit_r["source"])
+            t_node = str(limit_r["target"])
+            key = (s_node, t_node) if s_node < t_node else (t_node, s_node)
+            final_rel_keys.add(key)
 
     final_relationships = [
         ExtractedRelationship(
@@ -560,8 +567,11 @@ def extract_concepts(
 
     if final_relationships:
         print("--- Top 20 Strongest Relationships ---")
-        for r in final_relationships[:20]:
-            print(f"{r.source} <-({r.relationship_type})-> {r.target} [Score: {r.weight:.2f}]")
+        for final_r in final_relationships[:20]:
+            print(
+                f"{final_r.source} <-({final_r.relationship_type})-> {final_r.target} "
+                f"[Score: {final_r.weight:.2f}]"
+            )
         print("---------------------------------------")
 
     return concepts, final_relationships
@@ -573,7 +583,7 @@ def serialize_embedding(vector: list[float]) -> str:
 
 # -- Search --
 @lru_cache(maxsize=1)
-def get_model():
+def get_model() -> Any:
     from sentence_transformers import SentenceTransformer
 
     return SentenceTransformer(settings.embedding_model)
@@ -619,16 +629,16 @@ def semantic_search(query: str, limit: int = 10) -> list[dict[str, float | int |
         model = get_model()
         query_vector = model.encode(query).tolist()
         concept_vectors = model.encode([str(row["name"]) for row in concepts]).tolist()
-        scored = [
+        scored: list[dict[str, float | int | str]] = [
             {
                 "concept_id": int(row["id"]),
                 "name": str(row["name"]),
-                "score": cosine_similarity(query_vector, vector),
+                "score": float(cosine_similarity(query_vector, vector)),
                 "frequency": int(row["frequency"]),
             }
             for row, vector in zip(concepts, concept_vectors, strict=False)
         ]
-        scored.sort(key=lambda item: float(item["score"]), reverse=True)
+        scored.sort(key=lambda item: float(cast(float, item["score"])), reverse=True)
         return scored[:limit]
     except Exception:
         return lexical_search(query, limit)

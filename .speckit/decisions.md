@@ -38,4 +38,3 @@ Reason:
 - Faster to ship than training custom extractors
 - Easier to debug with local data
 - Leaves room for PS-1 quality improvements
-

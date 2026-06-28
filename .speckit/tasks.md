@@ -19,4 +19,3 @@
 - Improve relationship inference beyond co-occurrence
 - Cache embeddings to reduce repeat computation
 - Add source citations in concept detail views
-

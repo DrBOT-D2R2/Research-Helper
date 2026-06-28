@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 @dataclass(slots=True)
@@ -119,6 +119,8 @@ def insert_document(
             """,
             (filename, file_type, checksum, storage_path, status, utc_now()),
         )
+        if cursor.lastrowid is None:
+            raise sqlite3.DatabaseError("Insert failed: lastrowid is None")
         return int(cursor.lastrowid)
 
 
@@ -130,7 +132,8 @@ def update_document_status(document_id: int, status: str) -> None:
 def fetch_document(document_id: int) -> sqlite3.Row | None:
     with db_cursor() as cursor:
         cursor.execute("SELECT * FROM documents WHERE id = ?", (document_id,))
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        return cast(sqlite3.Row | None, row)
 
 
 def insert_chunk(
@@ -151,6 +154,8 @@ def insert_chunk(
             """,
             (document_id, chunk_index, content, token_estimate, char_start, char_end),
         )
+        if cursor.lastrowid is None:
+            raise sqlite3.DatabaseError("Insert failed: lastrowid is None")
         return int(cursor.lastrowid)
 
 
@@ -190,6 +195,8 @@ def upsert_concept(
             """,
             (name, description, embedding, 1, entity_type, first_seen_index, utc_now()),
         )
+        if cursor.lastrowid is None:
+            raise sqlite3.DatabaseError("Insert failed: lastrowid is None")
         return int(cursor.lastrowid)
 
 
@@ -266,4 +273,5 @@ def fetch_all(sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
 def fetch_one(sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:
     with db_cursor() as cursor:
         cursor.execute(sql, params)
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        return cast(sqlite3.Row | None, row)

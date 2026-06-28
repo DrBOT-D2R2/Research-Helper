@@ -35,7 +35,7 @@ lint:python-ruff:
   tags:
     - my-custom-runner-tag
   script:
-    - ruff check . || true
+    - ruff check .
 
 lint:python-black:
   stage: lint
@@ -43,7 +43,7 @@ lint:python-black:
   tags:
     - my-custom-runner-tag
   script:
-    - black --check . || true
+    - black --check .
 
 lint:frontend-types:
   stage: lint
@@ -51,7 +51,7 @@ lint:frontend-types:
   tags:
     - my-custom-runner-tag
   script:
-    - npx tsc --noEmit || echo "TypeScript check bypassed or skipped."
+    - npm run typecheck
 
 security:python-mypy:
   stage: security
@@ -59,7 +59,7 @@ security:python-mypy:
   tags:
     - my-custom-runner-tag
   script:
-    - mypy backend || true
+    - mypy backend
 
 security:secrets:
   stage: security

@@ -109,4 +109,3 @@ cd frontend && npm run build
 - Future version: spaced review workflows, local vector index alternatives, import/export, plugin-style ingestion pipelines
 
 Detailed planning lives in [.speckit/README.md](/Users/DruhinDatta1/knowledge-vault/.speckit/README.md).
-

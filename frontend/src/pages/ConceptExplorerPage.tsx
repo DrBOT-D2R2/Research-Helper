@@ -8,7 +8,7 @@ import type { Concept } from "../types/api";
 export default function ConceptExplorerPage() {
   const [query, setQuery] = useState("");
   const [entityType, setEntityType] = useState("Concept");
-  
+
   const { data, error, loading } = useAsync<Concept[]>(
     () => {
       const params = new URLSearchParams();
@@ -33,10 +33,10 @@ export default function ConceptExplorerPage() {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search concepts..."
         />
-        <select 
+        <select
           className="search-input"
           style={{ width: "auto" }}
-          value={entityType} 
+          value={entityType}
           onChange={(e) => setEntityType(e.target.value)}
         >
           <option value="All">All Types</option>
@@ -53,4 +53,3 @@ export default function ConceptExplorerPage() {
     </section>
   );
 }
-

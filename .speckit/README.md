@@ -25,4 +25,3 @@ Speckit is the lightweight project memory for this repository. It keeps product 
 5. Keep the MVP honest by comparing changes against `roadmap.md`.
 
 Speckit is intentionally lightweight. It is not meant to replace issues or formal design docs; it keeps the minimum project context needed to build fast without drifting.
-

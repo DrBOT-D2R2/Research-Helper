@@ -21,4 +21,3 @@ export default function LearningPathView({ path }: LearningPathViewProps) {
     </div>
   );
 }
-

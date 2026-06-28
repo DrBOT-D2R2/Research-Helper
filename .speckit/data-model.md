@@ -43,4 +43,3 @@
 - The MVP stores one embedding per concept, not per chunk, to keep the schema lean.
 - Chunk text is retained for traceability and future explanation generation.
 - Relationships are directed so prerequisite traversal works from day one.
-

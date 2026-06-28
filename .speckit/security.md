@@ -19,4 +19,3 @@
 - Magic-byte sniffing for PDF validation
 - File quarantine for parse failures
 - Optional encryption at rest for stored documents and database
-

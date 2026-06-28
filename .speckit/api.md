@@ -49,4 +49,3 @@ Returns a prerequisite path for the requested concept.
 Query params:
 
 - `depth`: optional maximum traversal depth
-

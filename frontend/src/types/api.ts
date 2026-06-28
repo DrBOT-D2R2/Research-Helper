@@ -68,4 +68,3 @@ export type UploadResult = {
   concept_count: number;
   relationship_count: number;
 };
-

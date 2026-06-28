@@ -10,4 +10,3 @@ The MVP ingestion pipeline is intentionally deterministic:
 6. Persist chunks, concepts, and graph edges.
 
 This keeps the first implementation explainable and testable while leaving space for stronger extraction later.
-

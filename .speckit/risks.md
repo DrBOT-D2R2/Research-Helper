@@ -32,4 +32,3 @@ Mitigation:
 - Bound upload size
 - Process per page
 - Surface ingestion progress in later iterations
-
