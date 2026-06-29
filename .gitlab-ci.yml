@@ -104,6 +104,7 @@ test:backend-unit:
   script:
     - |
       if [ -d tests ]; then
+        python scripts/download_spacy_model.py
         pytest
       else
         echo "No tests directory found, skipping pytest."

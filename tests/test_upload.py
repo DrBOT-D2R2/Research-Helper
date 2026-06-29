@@ -15,15 +15,6 @@ def test_duplicate_upload_prevention(tmp_path, monkeypatch) -> None:
     reload(db)
     db.init_db()
 
-    # Mock heavy pipeline dependencies to prevent downloading external models
-    # (HuggingFace, spaCy) during tests
-    from backend.app.pipeline import TextChunk
-
-    dummy_chunk = TextChunk(index=0, content="dummy", char_start=0, char_end=5, token_estimate=1)
-    monkeypatch.setattr("backend.app.main.parse_document", lambda x: "dummy text")
-    monkeypatch.setattr("backend.app.main.chunk_text", lambda x: [dummy_chunk])
-    monkeypatch.setattr("backend.app.main.extract_concepts", lambda x: ([], []))
-
     app = create_app()
     client = TestClient(app)
 
