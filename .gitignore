@@ -19,3 +19,4 @@ data/uploads/*
 !data/uploads/.gitkeep
 data/sqlite/*
 !data/sqlite/.gitkeep
+*.tsbuildinfo

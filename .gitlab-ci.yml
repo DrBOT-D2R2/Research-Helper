@@ -37,70 +37,59 @@ cache:
 
 .docker_build_setup:
   image: docker:27
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_TLS_CERTDIR: ""
   before_script:
     - docker info
 
 lint:python-ruff:
   stage: lint
   extends: .python_lint_setup
-  tags:
-    - my-custom-runner-tag
   script:
     - ruff check .
 
 lint:python-black:
   stage: lint
   extends: .python_lint_setup
-  tags:
-    - my-custom-runner-tag
   script:
     - black --check .
 
 lint:frontend-types:
   stage: lint
   extends: .node_setup
-  tags:
-    - my-custom-runner-tag
   script:
     - npm run typecheck
 
 security:python-mypy:
   stage: security
   extends: .python_setup
-  tags:
-    - my-custom-runner-tag
   script:
     - mypy backend
 
 security:secrets:
   stage: security
   image: alpine:3.20
-  tags:
-    - my-custom-runner-tag
   script:
     - echo "Checking for hardcoded credentials..."
 
 build:backend-image:
   stage: build
   extends: .docker_build_setup
-  tags:
-    - my-custom-runner-tag
   script:
     - docker build -f Dockerfile.backend -t knowledge-vault-backend:latest .
 
 build:frontend-image:
   stage: build
   extends: .docker_build_setup
-  tags:
-    - my-custom-runner-tag
   script:
     - docker build -f Dockerfile.frontend -t knowledge-vault-frontend:latest .
 
 test:backend-unit:
   stage: test
   extends: .python_setup
-  tags:
-    - my-custom-runner-tag
   script:
     - |
       if [ -d tests ]; then
@@ -113,7 +102,5 @@ test:backend-unit:
 deploy:local-registry:
   stage: deploy
   image: alpine:3.20
-  tags:
-    - my-custom-runner-tag
   script:
     - echo "Deploying/tagging images for local cluster management..."

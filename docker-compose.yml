@@ -25,7 +25,7 @@ frontend:
         context: .
         file: Dockerfile.frontend
         args:
-          VITE_API_BASE_URL: /api
+          VITE_API_BASE_URL: ""
       image: knowledge-vault-frontend:latest
       restart: unless-stopped
       depends_on:
