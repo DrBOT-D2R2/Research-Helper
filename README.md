@@ -1,6 +1,6 @@
-# Knowledge Vault
+# Research Helper
 
-Knowledge Vault is a local-first knowledge operating system that converts personal documents into a navigable concept graph. The MVP is designed for a one-week build: ingest files locally, extract concepts, persist a graph in SQLite, search it, generate prerequisite paths, and explore the result visually.
+Research Helper is a local-first knowledge operating system that converts personal documents into a navigable concept graph. The MVP is designed for a one-week build: ingest files locally, extract concepts, persist a graph in SQLite, search it, generate prerequisite paths, and explore the result visually.
 
 ## Why this project exists
 
