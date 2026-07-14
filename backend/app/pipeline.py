@@ -90,20 +90,158 @@ class ExtractedRelationship:
     weight: float
 
 
-_NLP = None
+# -- Fallbacks for SpaCy and SentenceTransformers when they are not installed --
+class MockToken:
+    __slots__ = ("text", "is_stop")
+
+    def __init__(self, text: str):
+        self.text = text
+        self.is_stop = text.lower() in {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "with",
+            "by",
+            "of",
+            "from",
+            "up",
+            "about",
+            "into",
+            "over",
+            "after",
+            "is",
+            "was",
+            "are",
+            "were",
+            "been",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "this",
+            "that",
+            "these",
+            "those",
+            "i",
+            "you",
+            "he",
+            "she",
+            "it",
+            "we",
+            "they",
+        }
+
+
+class MockSpan:
+    __slots__ = ("text", "root")
+
+    def __init__(self, text: str):
+        self.text = text
+        self.root = MockToken(text.split()[-1] if text else "")
+
+
+class MockDoc:
+    __slots__ = ("text", "sents", "ents", "noun_chunks")
+
+    def __init__(self, text: str):
+        self.text = text
+        # Simple sentence splitter
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+        self.sents = [MockSpan(s) for s in sentences]
+
+        # Simple entity extraction using capitalized words
+        self.ents = []
+        for match in re.finditer(r"\b[A-Z][a-zA-Z0-9_-]*(?:\s+[A-Z][a-zA-Z0-9_-]*)*\b", text):
+            ent_text = match.group(0)
+            if ent_text.lower() not in {"the", "a", "an", "this", "that"}:
+                self.ents.append(MockSpan(ent_text))
+
+        # Simple noun chunks extraction per sentence
+        self.noun_chunks = []
+        for sent in self.sents:
+            words = sent.text.split()
+            current_chunk: list[str] = []
+            for word in words:
+                clean_word = re.sub(r"[^a-zA-Z0-9_-]", "", word)
+                if clean_word:
+                    token = MockToken(clean_word)
+                    if not token.is_stop:
+                        current_chunk.append(clean_word)
+                    else:
+                        if current_chunk:
+                            self.noun_chunks.append(MockSpan(" ".join(current_chunk)))
+                            current_chunk = []
+            if current_chunk:
+                self.noun_chunks.append(MockSpan(" ".join(current_chunk)))
+
+    def has_annotation(self, name: str) -> bool:
+        return True
+
+
+class MockNLP:
+    def __call__(self, text: str) -> MockDoc:
+        return MockDoc(text)
+
+
+class NumPyLikeList(list):
+    def tolist(self) -> list[float]:
+        return self
+
+
+class MockModel:
+    def encode(self, sentences: str | list[str]) -> Any:
+        if isinstance(sentences, str):
+            input_list = [sentences]
+            is_single = True
+        else:
+            input_list = sentences
+            is_single = False
+
+        vectors = []
+        for text in input_list:
+            vec = [0.0] * 128
+            text_lower = text.lower()
+            if len(text_lower) < 3:
+                ngrams = list(text_lower)
+            else:
+                ngrams = [text_lower[i : i + 3] for i in range(len(text_lower) - 2)]
+
+            for ngram in ngrams:
+                idx = hash(ngram) % 128
+                vec[idx] += 1.0
+
+            vectors.append(NumPyLikeList(vec))
+
+        return vectors[0] if is_single else vectors
+
+
+_NLP: Any = None
 
 
 def get_nlp() -> Any:
     global _NLP
     if _NLP is None:
-        import spacy
-
         try:
-            _NLP = spacy.load(settings.spacy_model)
-        except OSError:
-            _NLP = spacy.blank("en")
-            if "sentencizer" not in _NLP.pipe_names:
-                _NLP.add_pipe("sentencizer")
+            import spacy
+
+            try:
+                _NLP = spacy.load(settings.spacy_model)
+            except OSError:
+                _NLP = spacy.blank("en")
+                if "sentencizer" not in _NLP.pipe_names:
+                    _NLP.add_pipe("sentencizer")
+        except ImportError:
+            _NLP = MockNLP()
     return _NLP
 
 
@@ -584,9 +722,12 @@ def serialize_embedding(vector: list[float]) -> str:
 # -- Search --
 @lru_cache(maxsize=1)
 def get_model() -> Any:
-    from sentence_transformers import SentenceTransformer
+    try:
+        from sentence_transformers import SentenceTransformer
 
-    return SentenceTransformer(settings.embedding_model)
+        return SentenceTransformer(settings.embedding_model)
+    except ImportError:
+        return MockModel()
 
 
 def cosine_similarity(lhs: list[float], rhs: list[float]) -> float:

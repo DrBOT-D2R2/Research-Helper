@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def mock_sentence_transformer(monkeypatch):
+def mock_sentence_transformer(monkeypatch: pytest.MonkeyPatch) -> None:
     class DummyModel:
-        def encode(self, sentences, **kwargs):
+        def encode(self, sentences: str | list[str], **kwargs: Any) -> Any:
             # If a single sentence is passed, return a 1D array
             if isinstance(sentences, str):
                 return np.zeros(384, dtype=np.float32)

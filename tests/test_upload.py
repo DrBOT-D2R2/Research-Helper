@@ -1,12 +1,14 @@
 from importlib import reload
+from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 import backend.app.database as db
 from backend.app.main import create_app
 
 
-def test_duplicate_upload_prevention(tmp_path, monkeypatch) -> None:
+def test_duplicate_upload_prevention(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Set a temporary database URL
     monkeypatch.setenv("KNOWLEDGE_VAULT_DATABASE_URL", str(tmp_path / "test_upload.db"))
     monkeypatch.setenv("KNOWLEDGE_VAULT_DATA_DIR", str(tmp_path / "data"))

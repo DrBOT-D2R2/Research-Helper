@@ -1,4 +1,11 @@
-def test_prerequisite_path_walks_predecessors(tmp_path, monkeypatch) -> None:
+from pathlib import Path
+
+import pytest
+
+
+def test_prerequisite_path_walks_predecessors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("KNOWLEDGE_VAULT_DATABASE_URL", str(tmp_path / "test.db"))
 
     from importlib import reload
