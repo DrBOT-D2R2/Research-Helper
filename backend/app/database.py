@@ -15,9 +15,18 @@ class Settings:
     env: str = os.getenv("KNOWLEDGE_VAULT_ENV", "development")
     host: str = os.getenv("KNOWLEDGE_VAULT_HOST", "0.0.0.0")
     port: int = int(os.getenv("KNOWLEDGE_VAULT_PORT", "8000"))
-    data_dir: Path = Path(os.getenv("KNOWLEDGE_VAULT_DATA_DIR", "./data"))
+    data_dir: Path = Path(
+        os.getenv(
+            "KNOWLEDGE_VAULT_DATA_DIR", "/tmp/data" if os.getenv("VERCEL") == "1" else "./data"
+        )
+    )
     database_url: Path = Path(
-        os.getenv("KNOWLEDGE_VAULT_DATABASE_URL", "./data/sqlite/knowledge_vault.db")
+        os.getenv(
+            "KNOWLEDGE_VAULT_DATABASE_URL",
+            "/tmp/data/sqlite/knowledge_vault.db"
+            if os.getenv("VERCEL") == "1"
+            else "./data/sqlite/knowledge_vault.db",
+        )
     )
     log_level: str = os.getenv("KNOWLEDGE_VAULT_LOG_LEVEL", "INFO")
     embedding_model: str = os.getenv(
